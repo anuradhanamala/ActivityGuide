@@ -21,11 +21,20 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
     
-    # API Keys
+    # API Keys - Existing
     EVENTBRITE_API_KEY: Optional[str] = None
     YELP_API_KEY: Optional[str] = None
     GOOGLE_PLACES_API_KEY: Optional[str] = None
     TICKETMASTER_API_KEY: Optional[str] = None
+    
+    # API Keys - New Sources
+    MEETUP_API_KEY: Optional[str] = None
+    RECREATION_GOV_API_KEY: Optional[str] = None
+    YMCA_API_KEY: Optional[str] = None  # May not exist, using web scraping
+    BOYS_GIRLS_CLUB_API_KEY: Optional[str] = None  # May not exist, using web scraping
+    
+    # OpenStreetMap doesn't require API key but we can track usage
+    OSM_USER_AGENT: str = "ActivityGuide/1.0 (Family Event Discovery)"
     
     # AI Services
     OPENAI_API_KEY: Optional[str] = None
