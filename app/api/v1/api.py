@@ -3,7 +3,7 @@ Main API router for v1 endpoints
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import events, users, providers, sync, agentic_search, agentic_sync, nlp, unified_events
+from app.api.v1.endpoints import events, users, providers, sync, agentic_search, agentic_sync, nlp, unified_events, rag
 
 api_router = APIRouter()
 
@@ -18,3 +18,6 @@ api_router.include_router(nlp.router, prefix="/nlp", tags=["nlp"])
 
 # Include new unified endpoints
 api_router.include_router(unified_events.router, prefix="/unified", tags=["unified-events"])
+
+# Include RAG endpoints
+api_router.include_router(rag.router, prefix="/rag", tags=["rag"])
