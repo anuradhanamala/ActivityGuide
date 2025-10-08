@@ -46,11 +46,20 @@ class VectorRAGService:
         
         # Initialize embeddings (free, runs locally!)
         # Using sentence-transformers instead of OpenAI to save costs
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="all-MiniLM-L6-v2",  # Fast, good quality, free!
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
-        )
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings as HFEmbeddings
+            self.embeddings = HFEmbeddings(
+                model_name="all-MiniLM-L6-v2",  # Fast, good quality, free!
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+        except ImportError:
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
         
         # ChromaDB settings
         self.chroma_persist_directory = "./chroma_db"
@@ -67,13 +76,9 @@ class VectorRAGService:
             # Create persist directory if it doesn't exist
             os.makedirs(self.chroma_persist_directory, exist_ok=True)
             
-            # Initialize ChromaDB with persistent storage
+            # Initialize ChromaDB with persistent storage (simplified settings)
             self.chroma_client = chromadb.PersistentClient(
-                path=self.chroma_persist_directory,
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
+                path=self.chroma_persist_directory
             )
             
             # Create or get collection
@@ -90,14 +95,25 @@ class VectorRAGService:
                 logger.info(f"Created new ChromaDB collection: {self.collection_name}")
             
             # Initialize LangChain vector store wrapper
-            self.vector_store = Chroma(
-                client=self.chroma_client,
-                collection_name=self.collection_name,
-                embedding_function=self.embeddings
-            )
+            try:
+                from langchain_chroma import Chroma as ChromaVector
+                self.vector_store = ChromaVector(
+                    client=self.chroma_client,
+                    collection_name=self.collection_name,
+                    embedding_function=self.embeddings
+                )
+            except ImportError:
+                from langchain_community.vectorstores import Chroma
+                self.vector_store = Chroma(
+                    client=self.chroma_client,
+                    collection_name=self.collection_name,
+                    embedding_function=self.embeddings
+                )
             
         except Exception as e:
             logger.error(f"Error initializing ChromaDB: {e}")
+            import traceback
+            traceback.print_exc()
             self.chroma_client = None
             self.vector_store = None
     
@@ -304,9 +320,18 @@ class VectorRAGService:
             # Get full event objects from database
             event_ids = [doc.metadata["id"] for doc in results]
             
+            # Convert string UUIDs to UUID objects for SQLAlchemy
+            import uuid
+            uuid_ids = []
+            for eid in event_ids:
+                try:
+                    uuid_ids.append(uuid.UUID(eid) if isinstance(eid, str) else eid)
+                except:
+                    logger.warning(f"Invalid UUID: {eid}")
+            
             db = next(get_db())
             events = db.query(UnifiedEvent).filter(
-                UnifiedEvent.id.in_(event_ids)
+                UnifiedEvent.id.in_(uuid_ids)
             ).all()
             
             # Sort events in the same order as vector search results
