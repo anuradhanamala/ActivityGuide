@@ -226,23 +226,27 @@ class UnifiedSyncService:
     async def _create_sync_log(self, db: Session, results: Dict[str, Any]):
         """Create a sync log entry"""
         try:
-            sync_log = EventSyncLog(
-                source=None,  # Multi-source sync
-                sync_type="full",
-                status="success" if not results["errors"] else "partial",
-                events_processed=results["total_events"],
-                events_created=results["events_created"],
-                events_updated=results["events_updated"],
-                errors=results["errors"],
-                started_at=datetime.now() - timedelta(minutes=5),  # Approximate
-                completed_at=datetime.now()
-            )
+            # Create separate log for each source
+            for source in EventSource:
+                sync_log = EventSyncLog(
+                    source=source,
+                    sync_type="full",
+                    status="success" if not results["errors"] else "partial",
+                    events_processed=results["total_events"],
+                    events_created=results["events_created"],
+                    events_updated=results["events_updated"],
+                    errors=results["errors"],
+                    started_at=datetime.now() - timedelta(minutes=5),
+                    completed_at=datetime.now()
+                )
+                
+                db.add(sync_log)
             
-            db.add(sync_log)
             db.commit()
             
         except Exception as e:
             logger.error(f"Error creating sync log: {e}")
+            db.rollback()
     
     async def cleanup_old_events(self, db: Session, days_old: int = 30):
         """Remove events that haven't been updated in specified days"""
