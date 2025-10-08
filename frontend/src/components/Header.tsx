@@ -11,8 +11,11 @@ const Header: React.FC = () => {
           </Link>
           
           <nav className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-600 hover:text-primary-600 transition-colors">
-              Find Activities
+            <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+              🔍 Find Activities
+            </Link>
+            <Link to="/parallel-ai" className="text-gray-600 hover:text-purple-600 transition-colors">
+              ⚡ Parallel AI
             </Link>
             <Link to="/submit" className="text-gray-600 hover:text-primary-600 transition-colors">
               Submit Event
