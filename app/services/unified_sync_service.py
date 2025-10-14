@@ -33,8 +33,13 @@ class UnifiedSyncService:
             EventSource.TICKETMASTER: TicketmasterClient(),
         }
     
-    async def sync_all_sources(self, db: Session, zip_codes: List[str] = None) -> Dict[str, Any]:
-        """Sync events from all configured sources"""
+    async def sync_all_sources(
+        self, 
+        db: Session, 
+        zip_codes: List[str] = None, 
+        sources: Optional[List[EventSource]] = None
+    ) -> Dict[str, Any]:
+        """Sync events from all or specific sources"""
         if not zip_codes:
             zip_codes = ["48104", "48105", "48108"]  # Default Ann Arbor area
         
@@ -44,29 +49,49 @@ class UnifiedSyncService:
             "total_events": 0,
             "events_created": 0,
             "events_updated": 0,
-            "errors": []
+            "errors": [],
+            "sources_synced": []
         }
         
-        # Get all available sources
-        available_sources = self.api_manager.get_available_sources()
+        # Get sources to sync
+        if sources:
+            # Use specified sources only
+            available_sources = sources
+            logger.info(f"Syncing specific sources: {[s.value for s in sources]}")
+        else:
+            # Get all available sources
+            available_sources = self.api_manager.get_available_sources()
+            logger.info(f"Syncing all available sources: {[s.value for s in available_sources]}")
+        
         results["total_sources"] = len(available_sources)
         
         # Sync each source
         for source in available_sources:
             try:
+                logger.info(f"Starting sync for {source.value} with {len(zip_codes)} ZIP codes")
                 source_result = await self._sync_source(db, source, zip_codes)
                 results["total_events"] += source_result["total_events"]
                 results["events_created"] += source_result["events_created"]
                 results["events_updated"] += source_result["events_updated"]
                 results["successful_sources"] += 1
+                results["sources_synced"].append({
+                    "source": source.value,
+                    "events": source_result["total_events"],
+                    "created": source_result["events_created"],
+                    "updated": source_result["events_updated"]
+                })
+                logger.info(f"Completed sync for {source.value}: {source_result}")
             except Exception as e:
-                error_msg = f"Error syncing {source}: {str(e)}"
+                error_msg = f"Error syncing {source.value}: {str(e)}"
                 logger.error(error_msg)
+                import traceback
+                logger.error(traceback.format_exc())
                 results["errors"].append(error_msg)
         
         # Create sync log
         await self._create_sync_log(db, results)
         
+        logger.info(f"Sync completed: {results}")
         return results
     
     async def _sync_source(self, db: Session, source: EventSource, zip_codes: List[str]) -> Dict[str, Any]:
@@ -207,11 +232,22 @@ class UnifiedSyncService:
                 db.refresh(existing_event)
                 return existing_event
             else:
-                # Create new event
-                new_event = UnifiedEvent(**event_data)
+                # Filter event_data to only include valid UnifiedEvent fields
+                # Remove legacy fields that don't exist in UnifiedEvent model
+                filtered_data = {k: v for k, v in event_data.items() 
+                                if hasattr(UnifiedEvent, k) and k not in ['id', 'created_at', 'updated_at', 'last_synced']}
+                
+                # Map source to EventSource enum if it's a string
+                if 'source' in filtered_data and isinstance(filtered_data['source'], str):
+                    filtered_data['source'] = EventSource(filtered_data['source'])
+                
+                # Create new event with filtered data
+                new_event = UnifiedEvent(**filtered_data)
                 new_event.created_at = datetime.now()
                 new_event.updated_at = datetime.now()
                 new_event.last_synced = datetime.now()
+                new_event.is_active = True  # Set active by default
+                new_event.event_type = event_data.get('event_type', EventType.VENUE)  # Default to venue for Yelp businesses
                 
                 db.add(new_event)
                 db.commit()
@@ -220,6 +256,8 @@ class UnifiedSyncService:
                 
         except Exception as e:
             logger.error(f"Error saving event: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             db.rollback()
             return None
     

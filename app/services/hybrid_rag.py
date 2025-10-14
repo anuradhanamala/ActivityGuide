@@ -43,6 +43,13 @@ class HybridRAGService:
         Automatically chooses best retrieval method based on query type
         """
         
+        # Extract city from query if not provided
+        if not city:
+            extracted_city = self._extract_city_from_query(user_query)
+            if extracted_city:
+                city = extracted_city
+                logger.info(f"Extracted city from query: {city}")
+        
         # Analyze query to determine best approach
         query_type = self._analyze_query(user_query)
         
@@ -58,6 +65,7 @@ class HybridRAGService:
                 is_free=is_free
             )
             result["retrieval_strategy"] = "SQL (structured query)"
+            result["method_used"] = "sql"
             return result
             
         elif query_type == "semantic":
@@ -72,6 +80,7 @@ class HybridRAGService:
                 is_free=is_free
             )
             result["retrieval_strategy"] = "Vector (semantic query)"
+            result["method_used"] = "vector_search_semantic"
             return result
             
         else:
@@ -86,7 +95,54 @@ class HybridRAGService:
                 is_free=is_free
             )
             result["retrieval_strategy"] = "Vector (complex query)"
+            result["method_used"] = "vector_search_semantic"
             return result
+    
+    def _extract_city_from_query(self, query: str) -> Optional[str]:
+        """
+        Extract city name from natural language query
+        
+        Examples:
+        - "basketball in Detroit" → "Detroit"
+        - "museums near Troy" → "Troy"
+        - "swimming in birmingham" → "Birmingham"
+        """
+        
+        # Common Michigan cities in the database
+        known_cities = [
+            'detroit', 'troy', 'birmingham', 'bloomfield hills', 'novi',
+            'sterling heights', 'rochester', 'rochester hills', 'royal oak',
+            'farmington', 'farmington hills', 'madison heights', 'shelby township',
+            'southfield', 'westland', 'livonia', 'ferndale', 'warren',
+            'ann arbor', 'sandusky'
+        ]
+        
+        query_lower = query.lower()
+        
+        # Patterns to extract city: "in [city]", "near [city]", "at [city]"
+        city_patterns = [
+            r'\bin\s+([a-z\s]+?)(?:\s+for|\s+with|\s+area|$|\s+\w)',
+            r'\bnear\s+([a-z\s]+?)(?:\s+for|\s+with|\s+area|$|\s+\w)',
+            r'\bat\s+([a-z\s]+?)(?:\s+for|\s+with|\s+area|$|\s+\w)',
+            r'\baround\s+([a-z\s]+?)(?:\s+for|\s+with|\s+area|$|\s+\w)',
+        ]
+        
+        for pattern in city_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                potential_city = match.group(1).strip()
+                # Check if it matches a known city
+                for known_city in known_cities:
+                    if known_city in potential_city or potential_city in known_city:
+                        # Return with proper capitalization
+                        return known_city.title()
+        
+        # Also check if query ends with a city name
+        for known_city in known_cities:
+            if query_lower.endswith(known_city) or query_lower.endswith(known_city + ' '):
+                return known_city.title()
+        
+        return None
     
     def _analyze_query(self, query: str) -> str:
         """
@@ -110,7 +166,7 @@ class HybridRAGService:
         ]
         
         structured_keywords = [
-            'sports', 'music', 'art', 'dance', 'museum', 'playground',
+            'museum', 'playground', 'park',
             'free', 'paid', 'indoor', 'outdoor', 'weekend', 'saturday', 'sunday'
         ]
         

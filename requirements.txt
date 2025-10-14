@@ -14,6 +14,7 @@ schedule==1.2.0
 # API Integrations
 httpx==0.25.2
 requests==2.31.0
+geopy>=2.4.0  # Geocoding library for city-to-ZIP lookup
 
 # AI & LangChain
 langchain>=0.2.0

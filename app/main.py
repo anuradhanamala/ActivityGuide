@@ -37,13 +37,15 @@ async def lifespan(app: FastAPI):
             await redis_client.ping()
             print("✅ Redis connected")
         else:
-            print("⚠️ Redis not available - running without cache")
+            # Redis is optional for development
+            pass
     except Exception as e:
-        print(f"❌ Redis connection failed: {e}")
+        # Redis is optional - continue without cache
+        pass
     
-    # Start background sync scheduler (no default zip codes)
-    # start_sync_scheduler()  # Disabled - requires explicit zip codes
-    print("⚠️ Background sync disabled - no default zip codes configured")
+    # Start background sync scheduler (disabled - use API endpoints to trigger syncs)
+    # start_sync_scheduler()  # Use /api/v1/unified/sync/city endpoint instead
+    # print("⚠️ Background sync disabled - use sync API endpoints")
     
     yield
     

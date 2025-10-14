@@ -38,7 +38,7 @@ const FindActivities: React.FC = () => {
       </div>
 
       {/* Mode Toggle */}
-      <div className="mb-6 flex justify-center gap-4">
+      <div className="mb-6 flex justify-center gap-4 flex-wrap">
         <button
           onClick={handleSwitchToNatural}
           className={`px-6 py-3 rounded-lg font-medium transition-all ${
@@ -60,10 +60,10 @@ const FindActivities: React.FC = () => {
           🔧 Advanced Filters
         </button>
         <Link
-          to="/parallel-ai"
-          className="px-6 py-3 rounded-lg font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-all"
+          to="/"
+          className="px-6 py-3 rounded-lg font-medium bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
         >
-          ⚡ Parallel AI Events
+          🎯 Activity Explorer
         </Link>
       </div>
 

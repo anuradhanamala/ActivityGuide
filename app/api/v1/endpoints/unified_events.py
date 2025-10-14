@@ -14,6 +14,7 @@ from app.models.unified_event import (
     UnifiedEvent, EventSource, EventType, AgeCategory, EventSyncLog
 )
 from app.services.unified_sync_service import unified_sync_service
+from app.services.geocoding_service import geocoding_service
 from app.schemas.unified_event import (
     UnifiedEventResponse, EventSearchRequest, EventSearchResponse
 )
@@ -273,6 +274,67 @@ async def trigger_unified_sync(
         raise HTTPException(status_code=500, detail=f"Sync trigger failed: {str(e)}")
 
 
+@router.post("/sync/city")
+async def sync_city(
+    background_tasks: BackgroundTasks,
+    city: str = Query(..., description="City name (e.g., 'Troy', 'Detroit')"),
+    state: str = Query(..., description="State (e.g., 'MI', 'Michigan')"),
+    sources: Optional[List[EventSource]] = Query(None, description="Specific sources to sync (optional)")
+):
+    """
+    Sync activities for a specific city and state
+    
+    This endpoint automatically determines all ZIP codes for the specified city
+    and triggers a sync from the specified sources (or all sources if not specified).
+    
+    Examples:
+    - POST /api/v1/unified/sync/city?city=Troy&state=MI
+    - POST /api/v1/unified/sync/city?city=Detroit&state=Michigan&sources=yelp&sources=eventbrite
+    """
+    
+    try:
+        # Use geocoding service to get ZIP codes
+        # Note: This supports both exact city names and geocoding for any US city
+        try:
+            zip_codes, method = await geocoding_service.get_zip_codes_for_city(
+                city, state, radius_miles=25
+            )
+        except ValueError as e:
+            # Get available cities for error message
+            available_cities = geocoding_service.get_available_cities()
+            raise HTTPException(
+                status_code=404,
+                detail=f"{str(e)} Available pre-configured cities: {', '.join([f'{c}, {s}' for c, s in available_cities[:10]])}"
+            )
+        
+        logger.info(f"City sync requested for '{city}, {state}' -> {len(zip_codes)} ZIP codes via {method}, sources: {sources or 'all'}")
+        
+        # Add sync task to background
+        background_tasks.add_task(
+            _run_sync_task,
+            zip_codes=zip_codes,
+            sources=sources
+        )
+        
+        return {
+            "message": f"Sync triggered for {city}, {state}",
+            "status": "started",
+            "city": city,
+            "state": state,
+            "zip_codes": zip_codes,
+            "zip_code_count": len(zip_codes),
+            "sources": [s.value for s in sources] if sources else "all",
+            "estimated_radius_miles": 25,
+            "geocoding_method": method
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering city sync: {e}")
+        raise HTTPException(status_code=500, detail=f"City sync failed: {str(e)}")
+
+
 @router.get("/sync/status")
 async def get_sync_status(db: Session = Depends(get_db)):
     """Get recent sync status"""
@@ -406,9 +468,11 @@ async def _run_sync_task(zip_codes: Optional[List[str]] = None, sources: Optiona
     
     try:
         db = next(get_db())
-        result = await unified_sync_service.sync_all_sources(db, zip_codes)
+        result = await unified_sync_service.sync_all_sources(db, zip_codes, sources)
         logger.info(f"Background sync completed: {result}")
     except Exception as e:
         logger.error(f"Background sync failed: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()

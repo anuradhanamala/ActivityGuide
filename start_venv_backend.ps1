@@ -1,12 +1,23 @@
-# Start ActivityGuide Backend Server
-# Run this script to start the FastAPI backend
+# Start ActivityGuide Backend Using VENV
+# This script activates the virtual environment and runs the backend
 
 Write-Host "=" -NoNewline -ForegroundColor Cyan
 Write-Host ("=" * 78) -ForegroundColor Cyan
-Write-Host "  STARTING ACTIVITYGUIDE BACKEND SERVER" -ForegroundColor Green
+Write-Host "  STARTING BACKEND WITH VENV" -ForegroundColor Green
 Write-Host "=" -NoNewline -ForegroundColor Cyan
 Write-Host ("=" * 78) -ForegroundColor Cyan
 Write-Host ""
+
+# Check if venv exists
+if (-not (Test-Path "venv\Scripts\Activate.ps1")) {
+    Write-Host "[ERROR] Virtual environment not found!" -ForegroundColor Red
+    Write-Host "[INFO] Run: python -m venv venv" -ForegroundColor Yellow
+    exit 1
+}
+
+# Activate venv
+Write-Host "[INFO] Activating virtual environment..." -ForegroundColor Yellow
+& .\venv\Scripts\Activate.ps1
 
 # Check if in correct directory
 if (-not (Test-Path "app/main.py")) {
@@ -14,11 +25,7 @@ if (-not (Test-Path "app/main.py")) {
     exit 1
 }
 
-# Check Python
-Write-Host "[INFO] Checking Python..." -ForegroundColor Yellow
-python --version
-
-# Check if dependencies are installed
+# Check dependencies
 Write-Host "[INFO] Checking dependencies..." -ForegroundColor Yellow
 python -c "import fastapi; import uvicorn; print('[OK] FastAPI and Uvicorn installed')" 2>$null
 
@@ -40,15 +47,6 @@ if (Test-Path "activityguide.db") {
 Write-Host "[INFO] Checking .env file..." -ForegroundColor Yellow
 if (Test-Path ".env") {
     Write-Host "[OK] .env file exists" -ForegroundColor Green
-    
-    # Check API keys
-    $content = Get-Content ".env" -Raw
-    if ($content -match "YELP_API_KEY=(\w+)") {
-        Write-Host "[OK] Yelp API key configured" -ForegroundColor Green
-    }
-    if ($content -match "EVENTBRITE_API_KEY=(\w+)") {
-        Write-Host "[OK] Eventbrite API key configured" -ForegroundColor Green
-    }
 } else {
     Write-Host "[ERROR] .env file not found!" -ForegroundColor Red
     exit 1
@@ -57,10 +55,12 @@ if (Test-Path ".env") {
 Write-Host ""
 Write-Host "=" -NoNewline -ForegroundColor Cyan
 Write-Host ("=" * 78) -ForegroundColor Cyan
-Write-Host "  STARTING SERVER ON http://localhost:8000" -ForegroundColor Green
+Write-Host "  SERVER STARTING ON http://localhost:8000" -ForegroundColor Green
 Write-Host "=" -NoNewline -ForegroundColor Cyan
 Write-Host ("=" * 78) -ForegroundColor Cyan
 Write-Host ""
+Write-Host "[INFO] Using: " -NoNewline -ForegroundColor Yellow
+python -c "import sys; print(sys.executable)"
 Write-Host "[INFO] Press CTRL+C to stop the server" -ForegroundColor Yellow
 Write-Host "[INFO] API Documentation: http://localhost:8000/docs" -ForegroundColor Cyan
 Write-Host "[INFO] Alternative Docs: http://localhost:8000/redoc" -ForegroundColor Cyan
@@ -68,3 +68,4 @@ Write-Host ""
 
 # Start the server
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+

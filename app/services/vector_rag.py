@@ -6,8 +6,8 @@ Combines with SQLite for structured filtering
 import chromadb
 from chromadb.config import Settings
 from langchain_anthropic import ChatAnthropic
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import List, Dict, Any, Optional, Tuple
 import logging
@@ -46,20 +46,11 @@ class VectorRAGService:
         
         # Initialize embeddings (free, runs locally!)
         # Using sentence-transformers instead of OpenAI to save costs
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings as HFEmbeddings
-            self.embeddings = HFEmbeddings(
-                model_name="all-MiniLM-L6-v2",  # Fast, good quality, free!
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
-        except ImportError:
-            from langchain_community.embeddings import HuggingFaceEmbeddings
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="all-MiniLM-L6-v2",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",  # Fast, good quality, free!
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
         
         # ChromaDB settings
         self.chroma_persist_directory = "./chroma_db"
@@ -95,20 +86,11 @@ class VectorRAGService:
                 logger.info(f"Created new ChromaDB collection: {self.collection_name}")
             
             # Initialize LangChain vector store wrapper
-            try:
-                from langchain_chroma import Chroma as ChromaVector
-                self.vector_store = ChromaVector(
-                    client=self.chroma_client,
-                    collection_name=self.collection_name,
-                    embedding_function=self.embeddings
-                )
-            except ImportError:
-                from langchain_community.vectorstores import Chroma
-                self.vector_store = Chroma(
-                    client=self.chroma_client,
-                    collection_name=self.collection_name,
-                    embedding_function=self.embeddings
-                )
+            self.vector_store = Chroma(
+                client=self.chroma_client,
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings
+            )
             
         except Exception as e:
             logger.error(f"Error initializing ChromaDB: {e}")
@@ -125,7 +107,7 @@ class VectorRAGService:
         Stores embeddings in ChromaDB for fast semantic search
         """
         
-        if not self.vector_store:
+        if self.vector_store is None:
             return {"error": "ChromaDB not initialized"}
         
         try:
@@ -232,6 +214,11 @@ class VectorRAGService:
         # Title (most important)
         parts.append(f"Title: {event.title}")
         
+        # Tags (important for semantic matching)
+        if event.tags:
+            tags_str = ', '.join(str(t) for t in event.tags if t)
+            parts.append(f"Tags: {tags_str}")
+        
         # Description
         if event.description:
             parts.append(f"Description: {event.description}")
@@ -242,10 +229,6 @@ class VectorRAGService:
         # Type and category
         parts.append(f"Type: {event.event_type.value}")
         parts.append(f"Category: {event.primary_category or 'general'}")
-        
-        # Tags (important for semantic matching)
-        if event.tags:
-            parts.append(f"Tags: {', '.join(event.tags)}")
         
         # Age information
         if event.age_range_min and event.age_range_max:
@@ -290,7 +273,7 @@ class VectorRAGService:
             "burn energy" → finds sports, playgrounds, active games
         """
         
-        if not self.vector_store:
+        if self.vector_store is None:
             logger.warning("Vector store not initialized, falling back to SQL")
             return self._fallback_sql_search(query, city, age_min, age_max, is_free, limit)
         
@@ -304,18 +287,41 @@ class VectorRAGService:
             if is_free is not None:
                 where_filter["is_free"] = {"$eq": is_free}
             
-            # Perform semantic search
-            if where_filter:
-                results = self.vector_store.similarity_search(
-                    query,
-                    k=limit,
-                    filter=where_filter
-                )
-            else:
-                results = self.vector_store.similarity_search(
-                    query,
-                    k=limit
-                )
+            # Perform semantic search with error handling
+            try:
+                # Use similarity_search_with_score to filter by relevance
+                # Lower distance = more similar (0 = identical, 2 = completely different)
+                if where_filter:
+                    results_with_scores = self.vector_store.similarity_search_with_score(
+                        query,
+                        k=limit * 2,  # Get more results to filter
+                        filter=where_filter
+                    )
+                else:
+                    results_with_scores = self.vector_store.similarity_search_with_score(
+                        query,
+                        k=limit * 2
+                    )
+                
+                # SIMILARITY THRESHOLD: Filter by relevance
+                # Based on actual testing with "dance lessons" in Troy:
+                # Dance studios: 1.304 - 1.343 (INCLUDE)
+                # Martial Arts/MMA: 1.588 - 1.815 (EXCLUDE)
+                # Perfect threshold: 1.4657 (midpoint)
+                # Using 1.40 for safety margin
+                SIMILARITY_THRESHOLD = 1.40  # PERFECT - includes all dance, excludes all martial arts
+                
+                results = [
+                    doc for doc, score in results_with_scores 
+                    if score < SIMILARITY_THRESHOLD
+                ][:limit]  # Take top N after filtering
+                
+                logger.info(f"Filtered to {len(results)} results with similarity < {SIMILARITY_THRESHOLD}")
+                
+            except Exception as search_error:
+                logger.error(f"ChromaDB similarity search failed: {search_error}")
+                # Fallback to SQL search
+                return self._fallback_sql_search(query, city, age_min, age_max, is_free, limit)
             
             # Get full event objects from database
             event_ids = [doc.metadata["id"] for doc in results]
@@ -473,18 +479,33 @@ class VectorRAGService:
                     {
                         "id": str(e.id),
                         "title": e.title,
+                        "description": e.description,
+                        "summary": e.summary,
                         "source": e.source.value,
                         "city": e.city,
-                        "category": e.primary_category
+                        "state": e.state,
+                        "category": e.primary_category,
+                        "age_min": e.age_range_min,
+                        "age_max": e.age_range_max,
+                        "is_free": e.is_free,
+                        "is_indoor": e.is_indoor,
+                        "is_outdoor": e.is_outdoor,
+                        "tags": e.tags if e.tags else []
                     } for e in events[:10]
                 ]
             }
             
         except Exception as e:
             logger.error(f"Vector RAG error: {e}")
+            import traceback
+            traceback.print_exc()
             return {
+                "query": user_query,
                 "error": str(e),
-                "recommendations": f"Error generating recommendations: {str(e)}"
+                "recommendations": f"Error generating recommendations: {str(e)}",
+                "events_count": 0,
+                "retrieval_method": "vector_search_error",
+                "events_included": []
             }
     
     def _build_context(self, events: List[UnifiedEvent]) -> str:
@@ -500,6 +521,14 @@ class VectorRAGService:
             price = "FREE" if event.is_free else "Paid"
             location_type = "Indoor" if event.is_indoor else "Outdoor" if event.is_outdoor else "Flexible"
             
+            # Safe tag processing
+            tags_str = 'None'
+            if event.tags:
+                if isinstance(event.tags, list):
+                    tags_str = ', '.join(str(tag) for tag in event.tags[:5])
+                else:
+                    tags_str = str(event.tags)
+            
             context_parts.append(f"""
 {i}. {event.title}
    Source: {event.source.value.upper()}
@@ -510,7 +539,7 @@ class VectorRAGService:
    Ages: {age_range}
    Price: {price}
    Setting: {location_type}
-   Tags: {', '.join(event.tags[:5]) if event.tags else 'None'}
+   Tags: {tags_str}
    Description: {(event.description or '')[:200]}
 """)
         
@@ -538,29 +567,27 @@ class VectorRAGService:
         messages = [
             SystemMessage(content="""You are a knowledgeable and friendly family activity assistant.
 
-Your strengths:
-- Understanding parent needs and concerns
-- Matching activities to children's developmental stages
-- Providing practical, actionable recommendations
-- Being warm and supportive
+CRITICAL RULES:
+- ONLY recommend activities from the "Available Activities" list provided
+- NEVER make up or suggest activities not in the list
+- NEVER invent names, locations, or details
+- If no suitable activities exist in the list, say so honestly
 
-Guidelines:
-- Recommend 3-5 specific activities
-- Explain WHY each matches the user's needs
-- Include practical details (price, location, age-appropriateness)
-- Be honest about pros and cons
-- Prioritize safety and age-appropriateness
-- Keep responses conversational and helpful"""),
+Your task:
+- Select 3-5 activities from the PROVIDED list that best match the query
+- Explain WHY each activity matches the user's needs
+- Use the EXACT names and details from the list
+- Be honest if the available options aren't perfect matches"""),
             
             HumanMessage(content=f"""
 User Query: "{user_query}"
 {f"Looking for activities {age_context} {location_context}".strip()}
 
-Available Activities (sorted by relevance):
+Available Activities in Database (ONLY recommend from this list):
 {context}
 
-Based on these activities, provide personalized recommendations.
-Focus on activities that best match the user's specific needs and concerns.""")
+Recommend 3-5 activities from the above list that best match the query.
+Use their EXACT names and details. Do not invent or suggest anything not listed above.""")
         ]
         
         response = await self.llm.ainvoke(messages)
@@ -576,7 +603,7 @@ Focus on activities that best match the user's specific needs and concerns.""")
         This is only possible with vector embeddings!
         """
         
-        if not self.vector_store:
+        if self.vector_store is None:
             return []
         
         try:

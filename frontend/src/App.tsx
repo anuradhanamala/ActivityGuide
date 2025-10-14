@@ -5,7 +5,8 @@ import EventDetail from './components/EventDetail';
 import UserProfile from './components/UserProfile';
 import ProviderSubmission from './components/ProviderSubmission';
 import FindActivities from './pages/FindActivities';
-import ParallelAIEvents from './pages/ParallelAIEvents';
+// import ParallelAIEvents from './pages/ParallelAIEvents'; // Hidden from UI
+import SmartSearch from './pages/SmartSearch';
 import './App.css';
 
 function App() {
@@ -15,11 +16,14 @@ function App() {
         <Header />
         <main className="container mx-auto px-4 py-8">
           <Routes>
-            {/* Default landing page - Unified Search */}
-            <Route path="/" element={<FindActivities />} />
+            {/* Default landing page - Activity Explorer */}
+            <Route path="/" element={<SmartSearch />} />
             
-            {/* Parallel AI Events page */}
-            <Route path="/parallel-ai" element={<ParallelAIEvents />} />
+            {/* Find Activities - Browse page */}
+            <Route path="/browse" element={<FindActivities />} />
+            
+            {/* Parallel AI Events page - Hidden from UI */}
+            {/* <Route path="/parallel-ai" element={<ParallelAIEvents />} /> */}
             
             {/* Other routes */}
             <Route path="/events/:id" element={<EventDetail />} />

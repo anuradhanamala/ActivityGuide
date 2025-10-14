@@ -94,8 +94,18 @@ class SimpleRAGService:
                     {
                         "id": str(e.id),
                         "title": e.title,
+                        "description": e.description,
+                        "summary": e.summary,
                         "source": e.source.value,
-                        "city": e.city
+                        "city": e.city,
+                        "state": e.state,
+                        "category": e.primary_category,
+                        "age_min": e.age_range_min,
+                        "age_max": e.age_range_max,
+                        "is_free": e.is_free,
+                        "is_indoor": e.is_indoor,
+                        "is_outdoor": e.is_outdoor,
+                        "tags": e.tags if e.tags else []
                     } for e in events[:10]  # Include top 10 for reference
                 ]
             }
@@ -105,7 +115,9 @@ class SimpleRAGService:
             return {
                 "query": user_query,
                 "recommendations": f"Error generating recommendations: {str(e)}",
-                "events_count": 0
+                "events_count": 0,
+                "retrieval_method": "sql_error",
+                "events_included": []
             }
     
     def _retrieve_events(
@@ -189,6 +201,14 @@ class SimpleRAGService:
             
             location_info = "Indoor" if event.is_indoor else "Outdoor" if event.is_outdoor else "Flexible"
             
+            # Safe tag processing
+            tags_str = 'None'
+            if event.tags:
+                if isinstance(event.tags, list):
+                    tags_str = ', '.join(str(tag) for tag in event.tags[:5])
+                else:
+                    tags_str = str(event.tags)
+            
             context_lines.append(f"""
 {i}. {event.title}
    Source: {event.source.value.upper()}
@@ -199,7 +219,7 @@ class SimpleRAGService:
    Ages: {age_range}
    Price: {price_info}
    Setting: {location_info}
-   Tags: {', '.join(event.tags[:5]) if event.tags else 'None'}
+   Tags: {tags_str}
    Description: {(event.description or '')[:200]}...
 """)
         
