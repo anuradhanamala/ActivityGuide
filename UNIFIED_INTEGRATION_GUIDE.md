@@ -315,4 +315,4 @@ Full API documentation available at:
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+All rights reserved. This is proprietary software.
