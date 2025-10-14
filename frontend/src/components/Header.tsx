@@ -7,20 +7,13 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold text-gray-900">ActivityGuide</span>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-extrabold text-gray-900 tracking-tight">Activity Explorer</span>
+              <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full border border-purple-200">
+                powered by AI
+              </span>
+            </div>
           </Link>
-          
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-600 hover:text-primary-600 transition-colors">
-              Find Activities
-            </Link>
-            <Link to="/submit" className="text-gray-600 hover:text-primary-600 transition-colors">
-              Submit Event
-            </Link>
-            <Link to="/profile" className="text-gray-600 hover:text-primary-600 transition-colors">
-              My Profile
-            </Link>
-          </nav>
           
           <div className="flex items-center space-x-4">
             <Link 

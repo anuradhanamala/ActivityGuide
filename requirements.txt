@@ -14,13 +14,20 @@ schedule==1.2.0
 # API Integrations
 httpx==0.25.2
 requests==2.31.0
+geopy>=2.4.0  # Geocoding library for city-to-ZIP lookup
 
 # AI & LangChain
 langchain>=0.2.0
 langchain-openai>=0.1.0
 langchain-anthropic>=0.1.0
+langchain-community>=0.2.0
 openai>=1.6.1
 anthropic>=0.67.0,<1.0.0
+
+# Vector Embeddings & Semantic Search
+chromadb>=0.4.22
+sentence-transformers>=2.2.2
+tiktoken>=0.5.2
 
 # Data Processing
 pandas==2.1.3

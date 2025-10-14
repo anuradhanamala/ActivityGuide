@@ -197,4 +197,4 @@ Modify prompts and logic in `app/services/ai_agent.py`:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+All rights reserved. This is proprietary software.

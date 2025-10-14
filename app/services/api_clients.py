@@ -163,10 +163,12 @@ class YelpClient:
             "zip_code": location.get("zip_code", ""),
             "latitude": business_data.get("coordinates", {}).get("latitude"),
             "longitude": business_data.get("coordinates", {}).get("longitude"),
-            "category": "family_venue",
+            "category": "family_venue",  # For legacy events table
+            "primary_category": "family_venue",  # For unified_events table
             "is_free": business_data.get("price") == "$",
             "source": "yelp",
             "source_id": business_data.get("id", ""),
+            "external_id": business_data.get("id", ""),  # For unified_events
             "source_url": business_data.get("url", ""),
             "image_url": business_data.get("image_url", ""),
             "tags": [cat.get("title", "") for cat in business_data.get("categories", [])]
