@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     # AI Services
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None  # For Gemini
+    PARALLEL_AI_API_KEY: Optional[str] = None  # Deprecated - kept for backward compatibility with .env
     
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
