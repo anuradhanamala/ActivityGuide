@@ -656,7 +656,24 @@ async def _run_multi_source_sync(zip_codes: List[str], sources: Optional[List[Ev
         sync_service = UnifiedSyncService()
         logger.info(f"📞 Calling sync_all_sources with {len(zip_codes)} ZIP codes: {zip_codes[:3]}...")
         result = await sync_service.sync_all_sources(db, zip_codes, sources)
-        logger.info(f"✅ Multi-source sync completed: {result}")
+        
+        # Log detailed sync results
+        logger.info("="*80)
+        logger.info("✅ MULTI-SOURCE SYNC COMPLETED")
+        logger.info("="*80)
+        logger.info(f"📊 Events Created: {result.get('events_created', 0)}")
+        logger.info(f"📝 Events Updated: {result.get('events_updated', 0)}")
+        logger.info(f"⏱️  Duration: {result.get('duration', 0):.2f} seconds")
+        
+        # Log per-source breakdown if available
+        if 'source_results' in result:
+            logger.info(f"\n📋 By Source:")
+            for source, source_result in result.get('source_results', {}).items():
+                logger.info(f"   {source}:")
+                logger.info(f"      Created: {source_result.get('events_created', 0)}")
+                logger.info(f"      Updated: {source_result.get('events_updated', 0)}")
+        
+        logger.info("="*80)
     except Exception as e:
         logger.error(f"❌ Multi-source sync failed: {e}")
         import traceback
