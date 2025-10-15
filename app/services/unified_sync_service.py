@@ -158,7 +158,14 @@ class UnifiedSyncService:
         all_events = []
         
         for zip_code in zip_codes:
+            # Validate ZIP code before processing
+            if not zip_code or str(zip_code).strip() == "":
+                logger.error(f"❌ Skipping empty ZIP code! zip_codes list: {zip_codes}")
+                continue
+            
             try:
+                logger.info(f"📍 Processing ZIP code: {zip_code}")
+                
                 # Create search parameters
                 params = SearchParams(
                     location=zip_code,
@@ -202,11 +209,13 @@ class UnifiedSyncService:
                             end_date=params.end_date
                         )
                     elif source == EventSource.YELP:
+                        logger.info(f"🔍 Calling Yelp API with location='{zip_code}' (type: {type(zip_code)})")
                         events = await client.search_businesses(
                             location=zip_code,
                             categories=["museums", "playgrounds", "amusementparks"],
                             fetch_details=False  # Explicitly disable Business Details API
                         )
+                        logger.info(f"✅ Yelp returned {len(events)} events for ZIP {zip_code}")
                     elif source == EventSource.GOOGLE_PLACES:
                         events = await client.search_places(
                             location=zip_code,

@@ -99,16 +99,21 @@ async def orchestrate_multi_source_sync(
                 detail="Could not determine ZIP codes. Please provide 'zip_codes' directly or a valid 'city' name."
             )
         
+        # Debug logging
+        logger.info(f"✅ ZIP codes determined: {zip_codes} (count: {len(zip_codes)})")
+        
         # Convert source strings to EventSource enum if provided
         sources = None
         if request.sources:
             sources = [EventSource(s) for s in request.sources]
         
-        # Trigger background sync
+        logger.info(f"🚀 Triggering background sync with {len(zip_codes)} ZIP codes: {zip_codes}")
+        
+        # Trigger background sync with positional arguments (more reliable)
         background_tasks.add_task(
             _run_multi_source_sync,
-            zip_codes=zip_codes,
-            sources=sources
+            zip_codes,  # Positional arg 1
+            sources     # Positional arg 2
         )
         
         return {
@@ -595,13 +600,23 @@ async def data_quality_audit(
 
 async def _run_multi_source_sync(zip_codes: List[str], sources: Optional[List[EventSource]] = None):
     """Background task for multi-source sync"""
+    # Debug logging
+    logger.info(f"🔍 Background sync starting with ZIP codes: {zip_codes}, sources: {sources}")
+    
+    if not zip_codes or len(zip_codes) == 0:
+        logger.error(f"❌ ERROR: No ZIP codes provided to background sync! zip_codes={zip_codes}")
+        return
+    
     db = next(get_db())
     try:
         sync_service = UnifiedSyncService()
+        logger.info(f"📞 Calling sync_all_sources with {len(zip_codes)} ZIP codes: {zip_codes[:3]}...")
         result = await sync_service.sync_all_sources(db, zip_codes, sources)
-        logger.info(f"Multi-source sync completed: {result}")
+        logger.info(f"✅ Multi-source sync completed: {result}")
     except Exception as e:
-        logger.error(f"Multi-source sync failed: {e}")
+        logger.error(f"❌ Multi-source sync failed: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
