@@ -69,6 +69,15 @@ async def orchestrate_multi_source_sync(
     Returns immediately with sync started in background.
     """
     try:
+        # Validate city name - reject placeholder/test values
+        if request.city:
+            invalid_cities = ["string", "example", "test", "city", "none", "null", "undefined"]
+            if request.city.lower().strip() in invalid_cities:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"❌ Invalid city name: '{request.city}'. Please use a real city name like 'Troy', 'Detroit', or 'Novi'."
+                )
+        
         # Handle empty requests
         if not request.city and not request.zip_codes:
             raise HTTPException(
@@ -76,15 +85,26 @@ async def orchestrate_multi_source_sync(
                 detail="Either 'city' or 'zip_codes' must be provided. Example: {'city': 'Troy', 'state': 'MI'}"
             )
         
+        # DETAILED DEBUG: Log incoming request
+        logger.info("="*80)
+        logger.info(f"📥 INCOMING REQUEST:")
+        logger.info(f"   city: '{request.city}' (type: {type(request.city).__name__})")
+        logger.info(f"   state: '{request.state}' (type: {type(request.state).__name__})")
+        logger.info(f"   zip_codes: {request.zip_codes} (type: {type(request.zip_codes).__name__})")
+        logger.info("="*80)
+        
         # Convert city to ZIP codes if needed
         zip_codes = request.zip_codes
+        logger.info(f"🔍 Step 1: zip_codes from request = {zip_codes}")
+        
         if not zip_codes and request.city:
             from app.services.geocoding_service import geocoding_service
             try:
                 zip_codes, method = await geocoding_service.get_zip_codes_for_city(
                     request.city, request.state
                 )
-                logger.info(f"Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes using {method}")
+                logger.info(f"🔍 Step 2: After geocoding, zip_codes = {zip_codes}")
+                logger.info(f"✅ Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes using {method}")
             except Exception as e:
                 # If geocoding fails, return helpful error instead of using defaults
                 raise HTTPException(
@@ -99,13 +119,38 @@ async def orchestrate_multi_source_sync(
                 detail="Could not determine ZIP codes. Please provide 'zip_codes' directly or a valid 'city' name."
             )
         
+        # CRITICAL: Validate ZIP codes don't contain placeholder values
+        invalid_values = ["string", "example", "test", "none", "null", "undefined", ""]
+        cleaned_zip_codes = []
+        for zip_code in zip_codes:
+            zip_str = str(zip_code).strip().lower()
+            if zip_str in invalid_values:
+                logger.error(f"❌ INVALID ZIP CODE DETECTED: '{zip_code}' - This is a placeholder, not a real ZIP!")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid ZIP code '{zip_code}' detected. Please provide real ZIP codes like '48374' or a valid city name."
+                )
+            # Also validate it looks like a ZIP code (5 digits)
+            if not zip_str.isdigit() or len(zip_str) != 5:
+                logger.error(f"❌ INVALID ZIP CODE FORMAT: '{zip_code}' - Must be 5 digits")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid ZIP code format '{zip_code}'. ZIP codes must be 5 digits (e.g., '48374')."
+                )
+            cleaned_zip_codes.append(zip_code)
+        
+        zip_codes = cleaned_zip_codes
+        
         # Debug logging
-        logger.info(f"✅ ZIP codes determined: {zip_codes} (count: {len(zip_codes)})")
+        logger.info(f"🔍 Step 3: After validation, zip_codes = {zip_codes}")
+        logger.info(f"✅ ZIP codes validated and cleaned: {zip_codes} (count: {len(zip_codes)})")
         
         # Convert source strings to EventSource enum if provided
         sources = None
         if request.sources:
             sources = [EventSource(s) for s in request.sources]
+        
+        logger.info(f"🔍 Step 4: About to pass to background task: zip_codes={zip_codes}, sources={sources}")
         
         logger.info(f"🚀 Triggering background sync with {len(zip_codes)} ZIP codes: {zip_codes}")
         
@@ -600,8 +645,16 @@ async def data_quality_audit(
 
 async def _run_multi_source_sync(zip_codes: List[str], sources: Optional[List[EventSource]] = None):
     """Background task for multi-source sync"""
-    # Debug logging
-    logger.info(f"🔍 Background sync starting with ZIP codes: {zip_codes}, sources: {sources}")
+    # DETAILED Debug logging
+    logger.info("="*80)
+    logger.info(f"🔍 BACKGROUND TASK STARTED")
+    logger.info(f"   Received zip_codes: {zip_codes} (type: {type(zip_codes).__name__})")
+    logger.info(f"   Received sources: {sources} (type: {type(sources).__name__ if sources else 'None'})")
+    
+    # Validate each ZIP code
+    for i, zip_code in enumerate(zip_codes):
+        logger.info(f"   zip_codes[{i}] = '{zip_code}' (type: {type(zip_code).__name__}, len: {len(str(zip_code))})")
+    logger.info("="*80)
     
     if not zip_codes or len(zip_codes) == 0:
         logger.error(f"❌ ERROR: No ZIP codes provided to background sync! zip_codes={zip_codes}")
