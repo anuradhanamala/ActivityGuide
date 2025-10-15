@@ -28,7 +28,7 @@ class UnifiedSyncService:
         self.api_manager = unified_api_manager
         self.legacy_clients = {
             EventSource.EVENTBRITE: EventbriteClient(),
-            # EventSource.YELP: YelpClient(),  # DISABLED - Yelp permanently disabled
+            EventSource.YELP: YelpClient(),  # Enabled - only Business Details API disabled
             EventSource.GOOGLE_PLACES: GooglePlacesClient(),
             EventSource.TICKETMASTER: TicketmasterClient(),
         }
@@ -39,9 +39,9 @@ class UnifiedSyncService:
         
         configured = []
         
-        # Yelp permanently disabled
-        # if settings.YELP_API_KEY and not settings.YELP_API_KEY.startswith("your_"):
-        #     configured.append(EventSource.YELP)
+        # Yelp enabled - only Business Details API is disabled (fetch_details=False)
+        if settings.YELP_API_KEY and not settings.YELP_API_KEY.startswith("your_"):
+            configured.append(EventSource.YELP)
         
         if settings.EVENTBRITE_API_KEY and not settings.EVENTBRITE_API_KEY.startswith("your_"):
             configured.append(EventSource.EVENTBRITE)

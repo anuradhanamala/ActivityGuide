@@ -1,32 +1,46 @@
-# ⚠️ Yelp Source - PERMANENTLY DISABLED
+# ⚠️ Yelp Business Details API - DISABLED
 
-## 🔒 **Status: Yelp Disabled**
+## 🔒 **Status: Only Business Details API Disabled**
 
 **Date:** October 14, 2024  
-**Reason:** User requested permanent disabling  
-**Status:** ✅ Completely disabled in sync services
+**What's Disabled:** Yelp Business Details API only (premium feature)
+**What's Enabled:** Yelp Business Search API ✅  
+**Status:** Yelp syncing works, no 403 errors
 
 ---
 
-## 🚫 **What Was Disabled:**
+## 🚫 **What's Disabled:**
 
-**File:** `app/services/unified_sync_service.py`
+**File:** `app/services/api_clients.py` (Line 114)
 
-**Changes:**
-1. ✅ Removed `EventSource.YELP` from `legacy_clients` dictionary
-2. ✅ Commented out Yelp in `_get_configured_sources()` method
+**Setting:**
+```python
+fetch_details: bool = False  # Disabled - requires premium Yelp API access
+```
 
-**Result:** Yelp will NEVER be synced, even if API key is present
+**What this disables:**
+- ❌ Yelp Business Details API (`/v3/businesses/{id}`)
+- ❌ Getting business's own website URLs
+- ❌ Additional premium business data
+
+**What still works:**
+- ✅ Yelp Business Search API (`/v3/businesses/search`)
+- ✅ Syncing venues from Yelp
+- ✅ Getting names, addresses, phone numbers, images, ratings
+- ✅ All basic business information
 
 ---
 
 ## 📊 **Current Active Sources:**
 
 **Working Sources:**
+- ✅ Yelp Business Search (API key configured) ✅
 - ✅ Eventbrite (if API key configured)
 
-**Disabled Sources:**
-- ❌ Yelp (permanently disabled)
+**Partially Disabled:**
+- ⚠️ Yelp Business Details (premium API - disabled)
+
+**Not Configured:**
 - ❌ Google Places (placeholder key)
 - ❌ Ticketmaster (placeholder key)
 - ❌ Meetup (placeholder key)
@@ -34,27 +48,17 @@
 
 ---
 
-## 🔧 **To Re-Enable Yelp (If Needed):**
+## 🔧 **To Enable Yelp Business Details (Requires Premium API):**
 
-**File:** `app/services/unified_sync_service.py`
+**File:** `app/services/api_clients.py` (Line 114)
 
-**Step 1: Uncomment in legacy_clients (Line 31):**
+**Change:**
 ```python
-self.legacy_clients = {
-    EventSource.EVENTBRITE: EventbriteClient(),
-    EventSource.YELP: YelpClient(),  # ← Uncomment this
-    EventSource.GOOGLE_PLACES: GooglePlacesClient(),
-    EventSource.TICKETMASTER: TicketmasterClient(),
-}
+fetch_details: bool = True  # Enable Business Details API
 ```
 
-**Step 2: Uncomment in _get_configured_sources (Lines 43-44):**
-```python
-if settings.YELP_API_KEY and not settings.YELP_API_KEY.startswith("your_"):
-    configured.append(EventSource.YELP)  # ← Uncomment these
-```
-
-**Step 3: Restart backend**
+**Note:** This requires a premium Yelp API subscription  
+**Without premium:** You'll get 403 Forbidden errors
 
 ---
 
@@ -70,37 +74,45 @@ POST /api/v1/ai-orchestration/multi-source/sync
 ```
 
 **System will:**
-- ✅ Check Eventbrite API
-- ❌ Skip Yelp (disabled)
-- ❌ Skip Google Places (no valid key)
-- ❌ Skip Ticketmaster (no valid key)
+- ✅ Sync from Yelp Business Search API (enabled!)
+- ✅ Skip Yelp Business Details API (disabled - no 403 errors)
+- ✅ Sync from Eventbrite (if API key configured)
+- ❌ Skip Google Places (placeholder key)
+- ❌ Skip Ticketmaster (placeholder key)
 
-**Only Eventbrite will be synced** (if configured)
+**Both Yelp and Eventbrite will sync!** ✅
 
 ---
 
 ## ⚠️ **Impact:**
 
 **Database:**
-- Existing Yelp data: ✅ Remains in database (not deleted)
-- New Yelp data: ❌ Won't be added
+- Existing Yelp data: ✅ Remains in database
+- New Yelp data: ✅ WILL be added (Search API works!)
 
 **Search:**
-- Existing Yelp activities: ✅ Still searchable
-- New Yelp activities: ❌ Won't be discovered
+- Existing Yelp activities: ✅ Searchable
+- New Yelp activities: ✅ Will be discovered
 
 **Console:**
-- Yelp errors: ✅ Eliminated (no more API calls)
+- Yelp Search API: ✅ Works perfectly
+- Yelp Business Details: ❌ Disabled (no 403 errors)
+
+**What You Get:**
+- ✅ Venue names, addresses, phone numbers
+- ✅ Images, categories, tags
+- ✅ Yelp page URLs, ratings, reviews
+- ❌ Business's own website URLs (would need premium API)
 
 ---
 
 ## 🎯 **Summary:**
 
-**Yelp Status:** ❌ Permanently disabled  
-**Code Location:** `app/services/unified_sync_service.py`  
-**Active Sources:** Eventbrite only  
-**Existing Data:** Preserved in database  
-**New Syncs:** Will not include Yelp  
+**Yelp Status:** ✅ Enabled (Search API only)  
+**Yelp Business Details:** ❌ Disabled (premium feature)  
+**Code Location:** `app/services/api_clients.py` (Line 114)  
+**Active Sources:** Yelp + Eventbrite  
+**Console:** Clean (no 403 errors)  
 
-**Yelp is now completely disabled from all sync operations!** 🔒
+**Yelp syncing works perfectly - only Business Details API is disabled!** ✅
 
