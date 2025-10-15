@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
 from app.core.config import settings
+from app.core.categories import CategoryMapper
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class EventbriteClient:
             async with httpx.AsyncClient() as client:
                 params = {
                     "location.address": location,
-                    "categories": ",".join(categories) if categories else "family",
+                    "categories": ",".join(categories) if categories else CategoryMapper.get_eventbrite_categories(),
                     "expand": "venue,description",
                     "status": "live"
                 }
@@ -122,7 +123,7 @@ class YelpClient:
             async with httpx.AsyncClient() as client:
                 params = {
                     "location": location,
-                    "categories": ",".join(categories) if categories else "museums,playgrounds,amusementparks,gyms,sportclubs,fitness,active,dance_schools,dancestudio",
+                    "categories": ",".join(categories) if categories else CategoryMapper.get_yelp_categories(),
                     "sort_by": "rating",
                     "limit": 50
                 }
@@ -257,7 +258,7 @@ class GooglePlacesClient:
             params = {
                 "location": location,
                 "radius": radius,
-                "type": "|".join(types) if types else "park|museum|amusement_park",
+                "type": "|".join(types) if types else CategoryMapper.get_google_places_types(),
                 "key": self.api_key
             }
             
