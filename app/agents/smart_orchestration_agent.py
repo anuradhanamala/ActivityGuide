@@ -390,7 +390,7 @@ class SmartOrchestrationAgent:
         
         # Initialize LLM
         self.llm = ChatOpenAI(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # Much cheaper than GPT-4, still very capable for orchestration
             temperature=0.1,  # Low temperature for consistent decisions
             api_key=settings.OPENAI_API_KEY
         )
