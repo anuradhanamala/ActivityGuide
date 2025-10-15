@@ -33,32 +33,7 @@ class GeocodingService:
             min_delay_seconds=1
         )
         
-        # Hardcoded mapping as fallback
-        self.city_zip_mapping = {
-            # Michigan cities
-            ("troy", "mi"): ["48007", "48083", "48084", "48085", "48098", "48099"],
-            ("troy", "michigan"): ["48007", "48083", "48084", "48085", "48098", "48099"],
-            ("detroit", "mi"): ["48201", "48202", "48204", "48205", "48206", "48207", "48208", "48209", "48210", "48211", "48212", "48213", "48214", "48215", "48216", "48217", "48219", "48221", "48223", "48224", "48226", "48227", "48228", "48234", "48235", "48238"],
-            ("detroit", "michigan"): ["48201", "48202", "48204", "48205", "48206", "48207", "48208", "48209", "48210", "48211", "48212", "48213", "48214", "48215", "48216", "48217", "48219", "48221", "48223", "48224", "48226", "48227", "48228", "48234", "48235", "48238"],
-            ("ann arbor", "mi"): ["48103", "48104", "48105", "48108", "48109"],
-            ("ann arbor", "michigan"): ["48103", "48104", "48105", "48108", "48109"],
-            ("sterling heights", "mi"): ["48310", "48311", "48312", "48313", "48314"],
-            ("sterling heights", "michigan"): ["48310", "48311", "48312", "48313", "48314"],
-            ("rochester", "mi"): ["48306", "48307", "48308", "48309"],
-            ("rochester", "michigan"): ["48306", "48307", "48308", "48309"],
-            ("rochester hills", "mi"): ["48307", "48309"],
-            ("rochester hills", "michigan"): ["48307", "48309"],
-            ("royal oak", "mi"): ["48067", "48068", "48073"],
-            ("royal oak", "michigan"): ["48067", "48068", "48073"],
-            ("birmingham", "mi"): ["48009", "48012"],
-            ("birmingham", "michigan"): ["48009", "48012"],
-            ("bloomfield hills", "mi"): ["48301", "48302", "48303", "48304"],
-            ("bloomfield hills", "michigan"): ["48301", "48302", "48303", "48304"],
-            ("novi", "mi"): ["48374", "48375", "48377"],
-            ("novi", "michigan"): ["48374", "48375", "48377"],
-            ("farmington", "mi"): ["48331", "48332", "48333", "48334", "48335", "48336"],
-            ("farmington", "michigan"): ["48331", "48332", "48333", "48334", "48335", "48336"],
-        }
+        # Hardcoded mapping removed - now fully dynamic using Nominatim for ALL cities
     
     async def get_zip_codes_for_city(
         self, 
@@ -75,13 +50,7 @@ class GeocodingService:
         city_normalized = city.lower().strip()
         state_normalized = state.lower().strip()
         
-        # Strategy 1: Try hardcoded mapping first (fastest)
-        zip_codes = self._get_from_hardcoded_mapping(city_normalized, state_normalized)
-        if zip_codes:
-            logger.info(f"Found {len(zip_codes)} ZIP codes for {city}, {state} from hardcoded mapping")
-            return zip_codes, "hardcoded_mapping"
-        
-        # Strategy 2: Try Nominatim (OpenStreetMap)
+        # Use Nominatim (OpenStreetMap) for dynamic geocoding - supports ANY US city
         try:
             zip_codes = await self._get_from_nominatim(city, state, radius_miles)
             if zip_codes:
@@ -101,19 +70,10 @@ class GeocodingService:
         # No results found
         raise ValueError(
             f"Could not find ZIP codes for '{city}, {state}'. "
-            f"Try using a major city name or add it to the hardcoded mapping."
+            f"Please check the city name spelling or provide ZIP codes directly."
         )
     
-    def _get_from_hardcoded_mapping(
-        self, 
-        city_normalized: str, 
-        state_normalized: str
-    ) -> Optional[List[str]]:
-        """Get ZIP codes from hardcoded mapping"""
-        for (mapped_city, mapped_state), zips in self.city_zip_mapping.items():
-            if city_normalized in mapped_city and state_normalized in mapped_state:
-                return zips
-        return None
+    # Hardcoded mapping removed - using dynamic Nominatim geocoding for all cities
     
     async def _get_from_nominatim(
         self, 
@@ -245,8 +205,11 @@ class GeocodingService:
         return state_mapping.get(state_lower, state.upper())
     
     def get_available_cities(self) -> List[Tuple[str, str]]:
-        """Get list of cities in hardcoded mapping"""
-        return list(self.city_zip_mapping.keys())
+        """Get list of example cities (now supports ANY US city dynamically)"""
+        return [
+            ("Troy", "MI"), ("Detroit", "MI"), ("Ann Arbor", "MI"),
+            ("Grand Rapids", "MI"), ("Lansing", "MI"), ("ANY US CITY", "STATE")
+        ]
 
 
 # Global service instance
