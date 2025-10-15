@@ -205,7 +205,8 @@ class VectorRAGService:
         """
         Create rich text representation of event for embedding
         
-        This text captures the semantic meaning of the activity
+        This text captures the semantic meaning AND contextual characteristics
+        to enable better matching for personality-based and need-based queries
         """
         
         # Build comprehensive text
@@ -250,8 +251,95 @@ class VectorRAGService:
         elif event.is_outdoor:
             parts.append("Outdoor activity")
         
+        # CONTEXTUAL SEMANTIC ENRICHMENT
+        # Add inferred contextual characteristics based on activity type
+        # This helps match personality traits and developmental needs
+        contextual_traits = self._infer_contextual_traits(event)
+        if contextual_traits:
+            parts.append(f"Characteristics: {', '.join(contextual_traits)}")
+        
         # Join all parts
         return " | ".join(parts)
+    
+    def _infer_contextual_traits(self, event: UnifiedEvent) -> List[str]:
+        """
+        Infer contextual traits from activity type and description
+        to enable better semantic matching for personality-based queries
+        """
+        traits = []
+        
+        title_lower = (event.title or '').lower()
+        desc_lower = (event.description or '').lower()
+        category = (event.primary_category or '').lower()
+        tags_lower = ' '.join(str(tag).lower() for tag in (event.tags or []))
+        combined = f"{title_lower} {desc_lower} {category} {tags_lower}"
+        
+        # Personality match traits
+        # For "shy kids" queries
+        if any(kw in combined for kw in ['theater', 'drama', 'performance', 'stage']):
+            traits.extend(['confidence-building', 'self-expression', 'social-skills'])
+        
+        if any(kw in combined for kw in ['martial arts', 'karate', 'taekwondo', 'judo']):
+            traits.extend(['discipline', 'confidence-building', 'structured', 'self-defense'])
+        
+        if any(kw in combined for kw in ['dance', 'ballet', 'hip hop']):
+            traits.extend(['creative', 'expressive', 'coordination', 'artistic'])
+        
+        if any(kw in combined for kw in ['art', 'paint', 'draw', 'craft', 'creative']):
+            traits.extend(['creative', 'quiet-activity', 'hands-on', 'artistic', 'imagination'])
+        
+        # For "energetic kids" queries
+        if any(kw in combined for kw in ['sports', 'basketball', 'soccer', 'football', 'baseball']):
+            traits.extend(['high-energy', 'physical', 'team-building', 'active', 'competitive'])
+        
+        if any(kw in combined for kw in ['gym', 'fitness', 'athletic', 'exercise']):
+            traits.extend(['physical', 'active', 'strength', 'high-energy'])
+        
+        if any(kw in combined for kw in ['swim', 'pool', 'aquatic', 'water']):
+            traits.extend(['physical', 'active', 'refreshing', 'summer-activity'])
+        
+        if any(kw in combined for kw in ['playground', 'park', 'outdoor']):
+            traits.extend(['outdoor', 'active', 'free-play', 'exploratory'])
+        
+        # For "anxious/calm" queries
+        if any(kw in combined for kw in ['museum', 'exhibit', 'gallery', 'educational']):
+            traits.extend(['calm', 'educational', 'quiet', 'learning', 'curious-minds'])
+        
+        if any(kw in combined for kw in ['library', 'reading', 'story', 'book']):
+            traits.extend(['calm', 'quiet', 'educational', 'literacy', 'peaceful'])
+        
+        if any(kw in combined for kw in ['yoga', 'meditation', 'mindfulness']):
+            traits.extend(['calm', 'mindful', 'relaxing', 'stress-relief'])
+        
+        # For "social" queries
+        if any(kw in combined for kw in ['group', 'class', 'club', 'team']):
+            traits.extend(['social', 'group-activity', 'peer-interaction'])
+        
+        if any(kw in combined for kw in ['camp', 'workshop', 'program']):
+            traits.extend(['structured', 'supervised', 'skill-building'])
+        
+        # Learning and development
+        if any(kw in combined for kw in ['science', 'stem', 'coding', 'robotics', 'tech']):
+            traits.extend(['educational', 'stem', 'problem-solving', 'analytical', 'curious-minds'])
+        
+        if any(kw in combined for kw in ['music', 'instrument', 'band', 'orchestra']):
+            traits.extend(['creative', 'artistic', 'coordination', 'auditory-learning'])
+        
+        # Age-specific traits
+        if event.age_range_min and event.age_range_min <= 5:
+            traits.extend(['toddler-friendly', 'early-childhood'])
+        elif event.age_range_min and event.age_range_min <= 8:
+            traits.extend(['elementary-age', 'developing-skills'])
+        elif event.age_range_min and event.age_range_min >= 12:
+            traits.extend(['teen-appropriate', 'adolescent'])
+        
+        # Group size inference
+        if any(kw in combined for kw in ['one-on-one', 'private', 'individual']):
+            traits.append('individualized')
+        elif any(kw in combined for kw in ['small group', 'intimate']):
+            traits.append('small-group')
+        
+        return list(set(traits))  # Remove duplicates
     
     async def semantic_search(
         self,
@@ -308,8 +396,8 @@ class VectorRAGService:
                 # Dance studios: 1.304 - 1.343 (INCLUDE)
                 # Martial Arts/MMA: 1.588 - 1.815 (EXCLUDE)
                 # Perfect threshold: 1.4657 (midpoint)
-                # Using 1.40 for safety margin
-                SIMILARITY_THRESHOLD = 1.40  # PERFECT - includes all dance, excludes all martial arts
+                # Using 1.20 for stricter filtering (prevents irrelevant results)
+                SIMILARITY_THRESHOLD = 1.20  # Stricter - only highly relevant results
                 
                 results = [
                     doc for doc, score in results_with_scores 
@@ -317,6 +405,11 @@ class VectorRAGService:
                 ][:limit]  # Take top N after filtering
                 
                 logger.info(f"Filtered to {len(results)} results with similarity < {SIMILARITY_THRESHOLD}")
+                
+                # If no relevant results found, return empty instead of all results
+                if len(results) == 0:
+                    logger.info(f"No relevant results found for '{query}' in {city or 'any city'} (all scores above threshold)")
+                    return []  # Return empty - better than irrelevant results
                 
             except Exception as search_error:
                 logger.error(f"ChromaDB similarity search failed: {search_error}")
@@ -482,14 +575,21 @@ class VectorRAGService:
                         "description": e.description,
                         "summary": e.summary,
                         "source": e.source.value,
+                        "location_name": e.location_name,
+                        "address": e.address,
                         "city": e.city,
                         "state": e.state,
+                        "zip_code": e.zip_code,
                         "category": e.primary_category,
                         "age_min": e.age_range_min,
                         "age_max": e.age_range_max,
                         "is_free": e.is_free,
                         "is_indoor": e.is_indoor,
                         "is_outdoor": e.is_outdoor,
+                        "source_url": e.source_url,
+                        "website_url": e.website_url,
+                        "contact_phone": e.contact_phone,
+                        "image_url": e.image_url,
                         "tags": e.tags if e.tags else []
                     } for e in events[:10]
                 ]
@@ -567,27 +667,35 @@ class VectorRAGService:
         messages = [
             SystemMessage(content="""You are a knowledgeable and friendly family activity assistant.
 
-CRITICAL RULES:
+⚠️ CRITICAL RULES:
 - ONLY recommend activities from the "Available Activities" list provided
-- NEVER make up or suggest activities not in the list
+- NEVER make up, invent, or suggest activities not in the list
+- NEVER mention businesses, venues, or programs that aren't explicitly listed
+- If the list has 1 activity, recommend only that 1 activity
+- If the list has 0 activities, say "No matching activities found"
 - NEVER invent names, locations, or details
-- If no suitable activities exist in the list, say so honestly
+- Be honest if options are limited
 
 Your task:
-- Select 3-5 activities from the PROVIDED list that best match the query
+- Recommend ONLY activities from the PROVIDED list (no more, no less)
 - Explain WHY each activity matches the user's needs
 - Use the EXACT names and details from the list
-- Be honest if the available options aren't perfect matches"""),
+- If only 1 activity exists, be enthusiastic about that one option
+- Never hallucinate or make up activities"""),
             
             HumanMessage(content=f"""
 User Query: "{user_query}"
 {f"Looking for activities {age_context} {location_context}".strip()}
 
-Available Activities in Database (ONLY recommend from this list):
+Available Activities in Database (ONLY recommend from this exact list):
 {context}
 
-Recommend 3-5 activities from the above list that best match the query.
-Use their EXACT names and details. Do not invent or suggest anything not listed above.""")
+⚠️ IMPORTANT: Recommend ONLY the activities listed above. Do not suggest any other venues, businesses, or programs not in the above list.
+
+Based ONLY on the activities listed above, provide personalized recommendations.
+Use their EXACT names and details from the list. Do not invent or suggest anything not listed above.
+
+If the list is short or has only 1 activity, that's okay - just recommend what's available without making up additional options.""")
         ]
         
         response = await self.llm.ainvoke(messages)

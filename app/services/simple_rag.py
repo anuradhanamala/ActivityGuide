@@ -68,7 +68,7 @@ class SimpleRAGService:
         
         try:
             # STEP 1: RETRIEVE events using simple SQL
-            events = self._retrieve_events(city, age_min, age_max, category, is_free, limit)
+            events = self._retrieve_events(city, age_min, age_max, category, is_free, limit, query_text=user_query)
             
             if not events:
                 return {
@@ -97,14 +97,21 @@ class SimpleRAGService:
                         "description": e.description,
                         "summary": e.summary,
                         "source": e.source.value,
+                        "location_name": e.location_name,
+                        "address": e.address,
                         "city": e.city,
                         "state": e.state,
+                        "zip_code": e.zip_code,
                         "category": e.primary_category,
                         "age_min": e.age_range_min,
                         "age_max": e.age_range_max,
                         "is_free": e.is_free,
                         "is_indoor": e.is_indoor,
                         "is_outdoor": e.is_outdoor,
+                        "source_url": e.source_url,
+                        "website_url": e.website_url,
+                        "contact_phone": e.contact_phone,
+                        "image_url": e.image_url,
                         "tags": e.tags if e.tags else []
                     } for e in events[:10]  # Include top 10 for reference
                 ]
@@ -127,7 +134,8 @@ class SimpleRAGService:
         age_max: Optional[int],
         category: Optional[str],
         is_free: Optional[bool],
-        limit: int
+        limit: int,
+        query_text: Optional[str] = None
     ) -> List[UnifiedEvent]:
         """
         RETRIEVAL: Simple SQL queries (no embeddings needed!)
@@ -164,6 +172,54 @@ class SimpleRAGService:
                 query = query.filter(
                     UnifiedEvent.primary_category.like(f"%{category}%")
                 )
+            
+            # Filter by query text if provided (search in title, description, tags)
+            if query_text:
+                from sqlalchemy import or_, func, and_
+                
+                # Extract keywords from query (remove common words)
+                stop_words = {'for', 'in', 'the', 'a', 'an', 'and', 'or', 'but', 'to', 'of', 'with'}
+                keywords = [word.lower() for word in query_text.split() if word.lower() not in stop_words and len(word) > 2]
+                
+                # Expand keywords with synonyms/related terms
+                keyword_expansions = {
+                    'swim': ['swim', 'aquatic', 'pool', 'water'],
+                    'swimming': ['swim', 'aquatic', 'pool', 'water'],
+                    'basketball': ['basketball', 'hoops'],
+                    'soccer': ['soccer', 'football'],
+                    'dance': ['dance', 'ballet', 'dancing'],
+                    'gym': ['gym', 'fitness', 'athletic'],
+                    'art': ['art', 'creative', 'painting', 'drawing'],
+                    'museum': ['museum', 'exhibit'],
+                    'park': ['park', 'playground'],
+                }
+                
+                # Expand keywords
+                expanded_keywords = set()
+                for keyword in keywords:
+                    if keyword in keyword_expansions:
+                        expanded_keywords.update(keyword_expansions[keyword])
+                    else:
+                        expanded_keywords.add(keyword)
+                
+                keywords = list(expanded_keywords)
+                
+                if keywords:
+                    # Build OR conditions for each keyword
+                    keyword_conditions = []
+                    for keyword in keywords:
+                        search_term = f"%{keyword}%"
+                        keyword_conditions.append(
+                            or_(
+                                func.lower(UnifiedEvent.title).like(search_term),
+                                func.lower(UnifiedEvent.description).like(search_term),
+                                func.lower(UnifiedEvent.primary_category).like(search_term)
+                            )
+                        )
+                    
+                    # At least ONE keyword must match
+                    if keyword_conditions:
+                        query = query.filter(or_(*keyword_conditions))
             
             if is_free is not None:
                 query = query.filter(UnifiedEvent.is_free == is_free)
@@ -252,14 +308,21 @@ class SimpleRAGService:
         messages = [
             SystemMessage(content="""You are a helpful and friendly family activity assistant for parents.
 
+⚠️ CRITICAL RULES:
+- ONLY recommend activities from the "Available Activities" list below
+- NEVER make up, invent, or suggest activities not in the list
+- NEVER mention businesses, venues, or programs that aren't explicitly listed
+- If the list has 1 activity, recommend only that 1 activity
+- If the list has 0 activities, say "No matching activities found"
+- Be honest if options are limited
+
 Your role:
-- Provide 3-5 specific activity recommendations
-- Explain WHY each is a good match for the user's needs
-- Include practical details: price, location, age-appropriateness
+- Recommend activities ONLY from the provided list
+- Explain WHY each activity matches their needs
+- Include practical details from the list (price, location, ages)
 - Be warm, conversational, and supportive
-- Prioritize activities that best match the user's question
-- Be honest about pros and cons
-- Keep responses concise but informative
+- If only 1 activity exists, be enthusiastic about that one option
+- Never hallucinate or make up activities
 
 Format your response clearly with numbered recommendations."""),
             
@@ -267,15 +330,19 @@ Format your response clearly with numbered recommendations."""),
 User Question: "{user_query}"
 {f"Looking for activities {age_context} {location_context}" if age_context or city else ""}
 
-Available Activities:
+Available Activities in Our Database (ONLY recommend from this exact list):
 {context}
 
-Based on these activities, please provide personalized recommendations.
+⚠️ IMPORTANT: Recommend ONLY the activities listed above. Do not suggest any other venues, businesses, or programs not in the above list.
+
+Based ONLY on the activities listed above, provide personalized recommendations.
 For each recommendation:
-1. Name the specific activity
+1. Use the EXACT name from the list above
 2. Explain why it matches their needs
-3. Include key details (price, location, ages)
-4. Add any helpful tips or considerations""")
+3. Include key details from the list (price, location, ages)
+4. Add any helpful tips or considerations
+
+If the list is short or has only 1 activity, that's okay - just recommend what's available without making up additional options.""")
         ]
         
         response = await self.llm.ainvoke(messages)
