@@ -32,17 +32,15 @@ router = APIRouter()
 
 class MultiSourceSyncRequest(BaseModel):
     """Request model for multi-source sync"""
-    city: Optional[str] = Field(None, description="City name", example="Troy")
-    state: Optional[str] = Field("MI", description="State code", example="MI")
-    zip_codes: Optional[List[str]] = Field(None, description="Specific ZIP codes", example=["48374", "48375"])
-    sources: Optional[List[str]] = Field(None, description="Specific sources (yelp, google_places, etc.)", example=["yelp", "google_places"])
+    city: str = Field(..., description="City name (required)", example="Troy")
+    state: str = Field("MI", description="State code", example="MI")
+    sources: Optional[List[str]] = Field(None, description="Specific sources (yelp, google_places, etc.)", example=["yelp"])
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "city": "Troy",
                 "state": "MI",
-                "zip_codes": None,
                 "sources": ["yelp"]
             }
         }
@@ -80,19 +78,11 @@ async def orchestrate_multi_source_sync(
     """
     try:
         # Validate city name - reject placeholder/test values
-        if request.city:
-            invalid_cities = ["string", "example", "test", "city", "none", "null", "undefined"]
-            if request.city.lower().strip() in invalid_cities:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"❌ Invalid city name: '{request.city}'. Please use a real city name like 'Troy', 'Detroit', or 'Novi'."
-                )
-        
-        # Handle empty requests
-        if not request.city and not request.zip_codes:
+        invalid_cities = ["string", "example", "test", "city", "none", "null", "undefined", ""]
+        if request.city.lower().strip() in invalid_cities:
             raise HTTPException(
                 status_code=400,
-                detail="Either 'city' or 'zip_codes' must be provided. Example: {'city': 'Troy', 'state': 'MI'}"
+                detail=f"❌ Invalid city name: '{request.city}'. Please use a real city name like 'Troy', 'Detroit', or 'Novi'."
             )
         
         # DETAILED DEBUG: Log incoming request
@@ -100,69 +90,57 @@ async def orchestrate_multi_source_sync(
         logger.info(f"📥 INCOMING REQUEST:")
         logger.info(f"   city: '{request.city}' (type: {type(request.city).__name__})")
         logger.info(f"   state: '{request.state}' (type: {type(request.state).__name__})")
-        logger.info(f"   zip_codes: {request.zip_codes} (type: {type(request.zip_codes).__name__})")
+        logger.info(f"   sources: {request.sources}")
         logger.info("="*80)
         
-        # Convert city to ZIP codes if needed
-        zip_codes = request.zip_codes
-        logger.info(f"🔍 Step 1: zip_codes from request = {zip_codes}")
+        # Always convert city to ZIP codes
+        from app.services.geocoding_service import geocoding_service
+        try:
+            zip_codes, method = await geocoding_service.get_zip_codes_for_city(
+                request.city, request.state
+            )
+            logger.info(f"🔍 Geocoding result: {request.city}, {request.state} → {zip_codes}")
+            logger.info(f"✅ Converted to {len(zip_codes)} ZIP codes using {method}")
+        except Exception as e:
+            logger.error(f"❌ Geocoding failed for '{request.city}, {request.state}': {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not find ZIP codes for '{request.city}, {request.state}'. Please check the city name. Error: {str(e)}"
+            )
         
-        if not zip_codes and request.city:
-            from app.services.geocoding_service import geocoding_service
-            try:
-                zip_codes, method = await geocoding_service.get_zip_codes_for_city(
-                    request.city, request.state
-                )
-                logger.info(f"🔍 Step 2: After geocoding, zip_codes = {zip_codes}")
-                logger.info(f"✅ Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes using {method}")
-            except Exception as e:
-                # If geocoding fails, return helpful error instead of using defaults
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Could not find ZIP codes for '{request.city}, {request.state}'. Please provide 'zip_codes' directly or use a recognized city name. Error: {str(e)}"
-                )
-        
-        # Final validation - must have ZIP codes
+        # Validate ZIP codes are valid
         if not zip_codes or len(zip_codes) == 0:
             raise HTTPException(
                 status_code=400,
-                detail="Could not determine ZIP codes. Please provide 'zip_codes' directly or a valid 'city' name."
+                detail=f"No ZIP codes found for {request.city}, {request.state}. Please verify the city name."
             )
         
-        # CRITICAL: Validate ZIP codes don't contain placeholder values
-        invalid_values = ["string", "example", "test", "none", "null", "undefined", ""]
+        # Validate each ZIP code format (5 digits)
         cleaned_zip_codes = []
         for zip_code in zip_codes:
-            zip_str = str(zip_code).strip().lower()
-            if zip_str in invalid_values:
-                logger.error(f"❌ INVALID ZIP CODE DETECTED: '{zip_code}' - This is a placeholder, not a real ZIP!")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid ZIP code '{zip_code}' detected. Please provide real ZIP codes like '48374' or a valid city name."
-                )
-            # Also validate it looks like a ZIP code (5 digits)
+            zip_str = str(zip_code).strip()
             if not zip_str.isdigit() or len(zip_str) != 5:
-                logger.error(f"❌ INVALID ZIP CODE FORMAT: '{zip_code}' - Must be 5 digits")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid ZIP code format '{zip_code}'. ZIP codes must be 5 digits (e.g., '48374')."
-                )
+                logger.warning(f"⚠️ Skipping invalid ZIP code: '{zip_code}'")
+                continue
             cleaned_zip_codes.append(zip_code)
         
-        zip_codes = cleaned_zip_codes
+        if len(cleaned_zip_codes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No valid ZIP codes found for {request.city}, {request.state}"
+            )
         
-        # Debug logging
-        logger.info(f"🔍 Step 3: After validation, zip_codes = {zip_codes}")
-        logger.info(f"✅ ZIP codes validated and cleaned: {zip_codes} (count: {len(zip_codes)})")
+        zip_codes = cleaned_zip_codes
+        logger.info(f"✅ Final validated ZIP codes: {zip_codes} (count: {len(zip_codes)})")
         
         # Convert source strings to EventSource enum if provided
         sources = None
         if request.sources:
             sources = [EventSource(s) for s in request.sources]
         
-        logger.info(f"🔍 Step 4: About to pass to background task: zip_codes={zip_codes}, sources={sources}")
-        
-        logger.info(f"🚀 Triggering background sync with {len(zip_codes)} ZIP codes: {zip_codes}")
+        logger.info(f"🚀 Triggering background sync: {len(zip_codes)} ZIP codes, {len(sources) if sources else 'all'} sources")
+        logger.info(f"   ZIP codes: {zip_codes}")
+        logger.info(f"   Sources: {sources}")
         
         # Trigger background sync with positional arguments (more reliable)
         background_tasks.add_task(
@@ -183,6 +161,9 @@ async def orchestrate_multi_source_sync(
             "check_status_at": "/api/v1/ai-orchestration/sync/status"
         }
         
+    except HTTPException:
+        # Re-raise HTTPException as-is (these are validation errors with proper status codes)
+        raise
     except Exception as e:
         logger.error(f"Error orchestrating multi-source sync: {e}")
         raise HTTPException(status_code=500, detail=str(e))
