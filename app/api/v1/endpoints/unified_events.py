@@ -277,9 +277,9 @@ async def trigger_unified_sync(
 @router.post("/sync/city")
 async def sync_city(
     background_tasks: BackgroundTasks,
-    city: str = Query(..., description="City name (e.g., 'Troy', 'Detroit')"),
-    state: str = Query(..., description="State (e.g., 'MI', 'Michigan')"),
-    sources: Optional[List[EventSource]] = Query(None, description="Specific sources to sync (optional)")
+    city: str = Query(..., description="City name (e.g., 'Troy', 'Detroit')", example="Troy"),
+    state: str = Query(..., description="State (e.g., 'MI', 'Michigan')", example="MI"),
+    sources: Optional[List[EventSource]] = Query(None, description="Specific sources to sync (optional)", example=["yelp"])
 ):
     """
     Sync activities for a specific city and state
@@ -293,14 +293,13 @@ async def sync_city(
     """
     
     try:
-        # Validate city name - reject placeholder values
-        if city:
-            city_lower = str(city).lower()
-            if city_lower in ["string", "example", "test", "city", "none"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid city name '{city}'. Please provide a real city name like 'Troy' or 'Detroit'."
-                )
+        # Validate city name - reject placeholder/test values
+        invalid_cities = ["string", "example", "test", "city", "none", "null", "undefined"]
+        if city and city.lower().strip() in invalid_cities:
+            raise HTTPException(
+                status_code=400,
+                detail=f"❌ Invalid city name: '{city}'. Please use a real city name like 'Troy', 'Detroit', or 'Novi'."
+            )
         
         # Use geocoding service to get ZIP codes
         # Note: This supports both exact city names and geocoding for any US city

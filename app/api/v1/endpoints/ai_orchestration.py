@@ -32,10 +32,20 @@ router = APIRouter()
 
 class MultiSourceSyncRequest(BaseModel):
     """Request model for multi-source sync"""
-    city: Optional[str] = Field(None, description="City name")
-    state: Optional[str] = Field("MI", description="State code")
-    zip_codes: Optional[List[str]] = Field(None, description="Specific ZIP codes")
-    sources: Optional[List[str]] = Field(None, description="Specific sources (yelp, google_places, etc.)")
+    city: Optional[str] = Field(None, description="City name", example="Troy")
+    state: Optional[str] = Field("MI", description="State code", example="MI")
+    zip_codes: Optional[List[str]] = Field(None, description="Specific ZIP codes", example=["48374", "48375"])
+    sources: Optional[List[str]] = Field(None, description="Specific sources (yelp, google_places, etc.)", example=["yelp", "google_places"])
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "city": "Troy",
+                "state": "MI",
+                "zip_codes": None,
+                "sources": ["yelp"]
+            }
+        }
 
 
 class IntelligentSearchRequest(BaseModel):
