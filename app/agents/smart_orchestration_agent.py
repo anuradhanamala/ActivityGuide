@@ -17,7 +17,7 @@ import logging
 
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.tools import tool
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic  # Using Claude instead of GPT!
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 from sqlalchemy import func
@@ -388,11 +388,11 @@ class SmartOrchestrationAgent:
     def __init__(self):
         """Initialize the agent with LangChain"""
         
-        # Initialize LLM
-        self.llm = ChatOpenAI(
-            model="gpt-3.5-turbo",  # Much cheaper than GPT-4, still very capable for orchestration
+        # Initialize LLM - Using Claude-3 Haiku (best value: cheap, fast, intelligent)
+        self.llm = ChatAnthropic(
+            model="claude-3-haiku-20240307",  # 50% cheaper than GPT-3.5, faster, more intelligent!
             temperature=0.1,  # Low temperature for consistent decisions
-            api_key=settings.OPENAI_API_KEY
+            anthropic_api_key=settings.ANTHROPIC_API_KEY
         )
         
         # Define agent prompt
