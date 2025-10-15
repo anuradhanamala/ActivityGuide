@@ -204,7 +204,8 @@ class UnifiedSyncService:
                     elif source == EventSource.YELP:
                         events = await client.search_businesses(
                             location=zip_code,
-                            categories=["museums", "playgrounds", "amusementparks"]
+                            categories=["museums", "playgrounds", "amusementparks"],
+                            fetch_details=False  # Explicitly disable Business Details API
                         )
                     elif source == EventSource.GOOGLE_PLACES:
                         events = await client.search_places(
