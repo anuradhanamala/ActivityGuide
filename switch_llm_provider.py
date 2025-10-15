@@ -4,12 +4,19 @@ Just run this script and choose your provider!
 """
 
 import sys
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 # Provider configurations
 PROVIDERS = {
     "1": {
         "name": "Claude-3 Haiku (RECOMMENDED)",
         "cost": "$1.50/month",
+        "env_var": "ANTHROPIC_API_KEY",
         "import": "from langchain_anthropic import ChatAnthropic",
         "code": '''self.llm = ChatAnthropic(
             model="claude-3-haiku-20240307",
@@ -23,6 +30,7 @@ PROVIDERS = {
     "2": {
         "name": "GPT-3.5-Turbo (Current)",
         "cost": "$3-6/month",
+        "env_var": "OPENAI_API_KEY",
         "import": "from langchain_openai import ChatOpenAI",
         "code": '''self.llm = ChatOpenAI(
             model="gpt-3.5-turbo",
@@ -36,6 +44,7 @@ PROVIDERS = {
     "3": {
         "name": "Gemini 1.5 Flash",
         "cost": "$2/month",
+        "env_var": "GOOGLE_API_KEY",
         "import": "from langchain_google_genai import ChatGoogleGenerativeAI",
         "code": '''self.llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-flash",
@@ -49,6 +58,7 @@ PROVIDERS = {
     "4": {
         "name": "Claude-3 Sonnet (More Intelligent)",
         "cost": "$18-30/month",
+        "env_var": "ANTHROPIC_API_KEY",
         "import": "from langchain_anthropic import ChatAnthropic",
         "code": '''self.llm = ChatAnthropic(
             model="claude-3-sonnet-20240229",
@@ -62,6 +72,7 @@ PROVIDERS = {
     "5": {
         "name": "GPT-4-Turbo (Most Expensive)",
         "cost": "$60-120/month",
+        "env_var": "OPENAI_API_KEY",
         "import": "from langchain_openai import ChatOpenAI",
         "code": '''self.llm = ChatOpenAI(
             model="gpt-4-turbo-preview",
@@ -74,15 +85,55 @@ PROVIDERS = {
     }
 }
 
+def check_available_keys():
+    """Check which API keys are configured in .env"""
+    available_keys = {}
+    
+    # Check each key
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    google_key = os.getenv("GOOGLE_API_KEY")
+    
+    available_keys["ANTHROPIC_API_KEY"] = bool(anthropic_key and anthropic_key.strip())
+    available_keys["OPENAI_API_KEY"] = bool(openai_key and openai_key.strip())
+    available_keys["GOOGLE_API_KEY"] = bool(google_key and google_key.strip())
+    
+    return available_keys
+
+
 def print_header():
     print("\n" + "="*80)
     print("  🤖 LLM Provider Switcher for Smart Orchestration Agent")
     print("="*80)
+    
+    # Show configured keys
+    available = check_available_keys()
+    
+    print("\n🔑 Your Configured API Keys:")
+    for key, is_set in available.items():
+        status = "✅ SET" if is_set else "❌ NOT SET"
+        print(f"   {key}: {status}")
+    
+    if available["ANTHROPIC_API_KEY"]:
+        print("\n🎉 Great! You have Anthropic key - Claude is READY to use!")
+    elif available["OPENAI_API_KEY"]:
+        print("\n✅ You have OpenAI key - GPT models available")
+    else:
+        print("\n⚠️  No AI provider keys found - you'll need to set one up")
 
 def print_menu():
     print("\n📋 Available Providers:\n")
+    
+    available = check_available_keys()
+    
     for key, provider in PROVIDERS.items():
-        print(f"  {key}. {provider['name']:40} Cost: {provider['cost']}")
+        # Check if this provider's key is configured
+        env_var = provider.get("env_var")
+        is_ready = available.get(env_var, False) if env_var else False
+        
+        status = "✅ READY" if is_ready else "⚠️  Need API key"
+        print(f"  {key}. {provider['name']:40} Cost: {provider['cost']:15} {status}")
+    
     print("\n  0. Exit")
 
 def show_instructions(choice):
@@ -91,17 +142,32 @@ def show_instructions(choice):
         return
     
     provider = PROVIDERS[choice]
+    available = check_available_keys()
+    
+    env_var = provider.get("env_var")
+    has_key = available.get(env_var, False) if env_var else False
     
     print("\n" + "="*80)
     print(f"  Switching to: {provider['name']}")
     print("="*80)
     
+    # Check if key is already configured
+    if has_key:
+        print(f"\n✅ GREAT NEWS: {env_var} is already configured in your .env!")
+        print(f"   You can use this provider immediately!")
+    else:
+        print(f"\n⚠️  {env_var} is NOT configured yet.")
+    
     print(f"\n📦 STEP 1: Install Package")
     print(f"   {provider['install']}")
     
-    print(f"\n🔑 STEP 2: Get API Key")
-    print(f"   Visit: {provider['url']}")
-    print(f"   Add to .env file: {provider['env']}")
+    if not has_key:
+        print(f"\n🔑 STEP 2: Get API Key (REQUIRED)")
+        print(f"   Visit: {provider['url']}")
+        print(f"   Add to .env file: {provider['env']}")
+    else:
+        print(f"\n🔑 STEP 2: API Key")
+        print(f"   ✅ ALREADY CONFIGURED - Skip this step!")
     
     print(f"\n💻 STEP 3: Update Code")
     print(f"\n   In app/agents/smart_orchestration_agent.py:")
