@@ -294,11 +294,13 @@ async def sync_city(
     
     try:
         # Validate city name - reject placeholder values
-        if city.lower() in ["string", "example", "test", "city"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid city name '{city}'. Please provide a real city name like 'Troy' or 'Detroit'."
-            )
+        if city:
+            city_lower = str(city).lower()
+            if city_lower in ["string", "example", "test", "city", "none"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid city name '{city}'. Please provide a real city name like 'Troy' or 'Detroit'."
+                )
         
         # Use geocoding service to get ZIP codes
         # Note: This supports both exact city names and geocoding for any US city
@@ -312,6 +314,13 @@ async def sync_city(
             raise HTTPException(
                 status_code=404,
                 detail=f"{str(e)} Available pre-configured cities: {', '.join([f'{c}, {s}' for c, s in available_cities[:10]])}"
+            )
+        
+        # Final validation - must have ZIP codes
+        if not zip_codes or len(zip_codes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not determine ZIP codes for {city}, {state}. Please provide ZIP codes directly."
             )
         
         logger.info(f"City sync requested for '{city}, {state}' -> {len(zip_codes)} ZIP codes via {method}, sources: {sources or 'all'}")

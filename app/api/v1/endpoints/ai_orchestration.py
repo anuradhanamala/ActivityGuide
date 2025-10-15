@@ -69,17 +69,11 @@ async def orchestrate_multi_source_sync(
     Returns immediately with sync started in background.
     """
     try:
-        # Validate request - reject placeholder values
-        if request.city and request.city.lower() in ["string", "example", "test", "city"]:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid city name '{request.city}'. Please provide a real city name like 'Troy' or 'Detroit'."
-            )
-        
-        if request.zip_codes and any(z.lower() in ["string", "12345", "00000"] for z in request.zip_codes):
+        # Handle empty requests
+        if not request.city and not request.zip_codes:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid ZIP codes. Please provide real ZIP codes like ['48374', '48375']."
+                detail="Either 'city' or 'zip_codes' must be provided. Example: {'city': 'Troy', 'state': 'MI'}"
             )
         
         # Convert city to ZIP codes if needed
@@ -91,9 +85,17 @@ async def orchestrate_multi_source_sync(
                     request.city, request.state
                 )
                 logger.info(f"Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes")
-            except:
+            except Exception as e:
+                logger.warning(f"Geocoding failed for {request.city}: {e}")
                 # Fallback to default ZIP codes
-                zip_codes = ["48083", "48084"] if request.city.lower() == "troy" else ["48201", "48202"]
+                zip_codes = ["48083", "48084"] if request.city and request.city.lower() == "troy" else ["48201", "48202"]
+        
+        # Final validation - must have ZIP codes
+        if not zip_codes or len(zip_codes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not determine ZIP codes. Please provide 'zip_codes' directly or a valid 'city' name."
+            )
         
         # Convert source strings to EventSource enum if provided
         sources = None
