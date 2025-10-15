@@ -122,7 +122,7 @@ class YelpClient:
             async with httpx.AsyncClient() as client:
                 params = {
                     "location": location,
-                    "categories": ",".join(categories) if categories else "museums,playgrounds,amusementparks,gyms,sportclubs,fitness,active",
+                    "categories": ",".join(categories) if categories else "museums,playgrounds,amusementparks,gyms,sportclubs,fitness,active,dance_schools,dancestudio",
                     "sort_by": "rating",
                     "limit": 50
                 }
