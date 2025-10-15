@@ -119,6 +119,13 @@ class YelpClient:
             logger.warning("Yelp API key not configured")
             return []
         
+        # Validate location parameter
+        if not location or str(location).strip() == "":
+            logger.error(f"❌ ERROR: Empty location passed to Yelp API! location='{location}'")
+            return []
+        
+        logger.info(f"🔍 Yelp API: location='{location}', categories={categories}")
+        
         try:
             async with httpx.AsyncClient() as client:
                 params = {

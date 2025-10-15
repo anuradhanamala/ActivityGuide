@@ -157,11 +157,21 @@ class UnifiedSyncService:
         """Fetch events from a specific source"""
         all_events = []
         
-        for zip_code in zip_codes:
-            # Validate ZIP code before processing
-            if not zip_code or str(zip_code).strip() == "":
-                logger.error(f"❌ Skipping empty ZIP code! zip_codes list: {zip_codes}")
-                continue
+        # Validate entire ZIP codes list first
+        if not zip_codes or len(zip_codes) == 0:
+            logger.error(f"❌ No ZIP codes provided to _fetch_source_events! zip_codes={zip_codes}")
+            return []
+        
+        # Filter out any empty/invalid ZIP codes
+        valid_zip_codes = [z for z in zip_codes if z and str(z).strip() != ""]
+        if len(valid_zip_codes) == 0:
+            logger.error(f"❌ All ZIP codes were empty! Original list: {zip_codes}")
+            return []
+        
+        if len(valid_zip_codes) < len(zip_codes):
+            logger.warning(f"⚠️ Filtered out {len(zip_codes) - len(valid_zip_codes)} empty ZIP codes")
+        
+        for zip_code in valid_zip_codes:
             
             try:
                 logger.info(f"📍 Processing ZIP code: {zip_code}")
