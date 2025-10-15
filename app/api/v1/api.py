@@ -3,7 +3,7 @@ Main API router for v1 endpoints
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, providers, unified_events, rag, ai_orchestration
+from app.api.v1.endpoints import users, providers, unified_events, rag, ai_orchestration, agent
 
 api_router = APIRouter()
 
@@ -23,3 +23,6 @@ api_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
 # Include AI Orchestration API (Industry-grade MCP via API)
 api_router.include_router(ai_orchestration.router, prefix="/ai-orchestration", tags=["ai-orchestration"])
+
+# Include Smart AI Agent (LangChain-powered autonomous agent)
+api_router.include_router(agent.router, prefix="/agent", tags=["ai-agent"])
