@@ -13,7 +13,6 @@ from app.core.config import settings
 from app.api.v1.api import api_router
 from app.core.database import engine, Base
 from app.core.cache import redis_client
-from app.services.sync import start_sync_scheduler
 
 
 @asynccontextmanager
@@ -33,10 +32,6 @@ async def lifespan(app: FastAPI):
     
     # Redis is optional for development - skip connection test
     print("ℹ️  Redis caching: Disabled (optional feature)")
-    
-    # Start background sync scheduler (disabled - use API endpoints to trigger syncs)
-    # start_sync_scheduler()  # Use /api/v1/unified/sync/city endpoint instead
-    # print("⚠️ Background sync disabled - use sync API endpoints")
     
     yield
     

@@ -39,7 +39,6 @@ class Settings(BaseSettings):
     # AI Services
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
-    PARALLEL_AI_API_KEY: Optional[str] = None
     
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
