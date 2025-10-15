@@ -167,7 +167,12 @@ class HybridRAGService:
         
         structured_keywords = [
             'museum', 'playground', 'park',
-            'free', 'paid', 'indoor', 'outdoor', 'weekend', 'saturday', 'sunday'
+            'free', 'paid', 'indoor', 'outdoor', 'weekend', 'saturday', 'sunday',
+            # Sports and specific activities (should use SQL filtering)
+            'basketball', 'soccer', 'football', 'baseball', 'tennis', 'swimming',
+            'hockey', 'volleyball', 'martial arts', 'karate', 'judo', 'taekwondo',
+            'dance', 'ballet', 'gymnastics', 'yoga', 'fitness', 'gym',
+            'sports', 'athletics', 'recreation', 'camp', 'class', 'lesson'
         ]
         
         # Semantic query indicators

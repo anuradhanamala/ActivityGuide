@@ -94,6 +94,20 @@ const ActivityCard: React.FC<{ event: any }> = ({ event }) => {
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-md hover:shadow-xl transition-all overflow-hidden">
+      {/* Image */}
+      {event.image_url && (
+        <div className="h-48 overflow-hidden">
+          <img 
+            src={event.image_url} 
+            alt={event.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      
       <div className="p-6">
         {/* Header */}
         <div className="mb-3">
@@ -127,7 +141,29 @@ const ActivityCard: React.FC<{ event: any }> = ({ event }) => {
 
         {/* Details */}
         <div className="space-y-2 text-sm text-gray-600">
-          {event.city && (
+          {/* Location Name */}
+          {event.location_name && event.location_name !== event.title && (
+            <p className="flex items-center gap-2">
+              <span>🏢</span>
+              <span className="font-medium">{event.location_name}</span>
+            </p>
+          )}
+          
+          {/* Full Address */}
+          {event.address && (
+            <p className="flex items-start gap-2">
+              <span className="mt-0.5">📍</span>
+              <span>
+                {event.address}
+                {event.city && `, ${event.city}`}
+                {event.state && `, ${event.state}`}
+                {event.zip_code && ` ${event.zip_code}`}
+              </span>
+            </p>
+          )}
+          
+          {/* City only (if no full address) */}
+          {!event.address && event.city && (
             <p className="flex items-center gap-2">
               <span>📍</span>
               <span>{event.city}, {event.state || 'MI'}</span>
@@ -156,6 +192,15 @@ const ActivityCard: React.FC<{ event: any }> = ({ event }) => {
               <span>{event.is_indoor ? 'Indoor' : 'Outdoor'}</span>
             </p>
           )}
+
+          {event.contact_phone && (
+            <p className="flex items-center gap-2">
+              <span>📞</span>
+              <a href={`tel:${event.contact_phone}`} className="text-blue-600 hover:text-blue-800">
+                {event.contact_phone}
+              </a>
+            </p>
+          )}
         </div>
 
         {/* Tags */}
@@ -169,6 +214,22 @@ const ActivityCard: React.FC<{ event: any }> = ({ event }) => {
                 {tag}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Website Link */}
+        {event.website_url && !event.website_url.includes('yelp.com') && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <a
+              href={event.website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
+            >
+              <span>🌐</span>
+              <span>Visit Website</span>
+              <span>→</span>
+            </a>
           </div>
         )}
       </div>

@@ -9,14 +9,19 @@ from typing import Optional, Any
 from datetime import timedelta
 
 
-# Create Redis client with error handling
-try:
-    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    redis_available = True
-except Exception as e:
-    print(f"Redis connection failed: {e}")
-    redis_client = None
-    redis_available = False
+# Redis is optional - set to None for development
+# To enable Redis caching, set REDIS_URL in .env
+redis_client = None
+redis_available = False
+
+# Uncomment to enable Redis (requires Redis server running)
+# try:
+#     redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+#     redis_available = True
+# except Exception as e:
+#     print(f"Redis connection failed: {e}")
+#     redis_client = None
+#     redis_available = False
 
 
 class CacheManager:

@@ -110,7 +110,8 @@ class YelpClient:
         self, 
         location: str, 
         categories: List[str] = None,
-        price: Optional[str] = None
+        price: Optional[str] = None,
+        fetch_details: bool = False  # Disabled - requires premium Yelp API access
     ) -> List[Dict[str, Any]]:
         """Search for family-friendly businesses"""
         if not self.api_key:
@@ -121,7 +122,7 @@ class YelpClient:
             async with httpx.AsyncClient() as client:
                 params = {
                     "location": location,
-                    "categories": ",".join(categories) if categories else "museums,playgrounds,amusementparks",
+                    "categories": ",".join(categories) if categories else "museums,playgrounds,amusementparks,gyms,sportclubs,fitness,active",
                     "sort_by": "rating",
                     "limit": 50
                 }
@@ -141,6 +142,13 @@ class YelpClient:
                 businesses = []
                 
                 for business in data.get("businesses", []):
+                    # Optionally fetch full details to get actual business website
+                    if fetch_details and business.get("id"):
+                        details = await self._get_business_details(client, business.get("id"))
+                        if details:
+                            # Merge details into business data
+                            business.update(details)
+                    
                     businesses.append(self._normalize_business(business))
                 
                 return businesses
@@ -149,9 +157,47 @@ class YelpClient:
             logger.error(f"Yelp API error: {e}")
             return []
     
+    async def _get_business_details(self, client: httpx.AsyncClient, business_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch detailed business information including actual business website
+        
+        Returns additional fields like:
+        - website: The business's actual website URL
+        - phone: Business phone number
+        - hours: Operating hours
+        """
+        try:
+            response = await client.get(
+                f"{self.base_url}/businesses/{business_id}",
+                headers=self.headers,
+                timeout=15.0
+            )
+            response.raise_for_status()
+            details = response.json()
+            
+            # Extract useful fields
+            # Yelp API provides both "url" (Yelp page) and potentially other fields
+            return {
+                "business_website": details.get("website") or details.get("url"),  # Business's actual website
+                "phone": details.get("phone"),
+                "hours": details.get("hours"),
+                "photos": details.get("photos", []),
+                "display_phone": details.get("display_phone"),
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch details for business {business_id}: {e}")
+            return None
+    
     def _normalize_business(self, business_data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize Yelp business data to our format"""
         location = business_data.get("location", {})
+        
+        # Get Yelp URL and create clean version
+        yelp_url = business_data.get("url", "")
+        clean_yelp_url = self._clean_yelp_url(yelp_url)
+        
+        # Get actual business website if available (from details API call)
+        actual_business_website = business_data.get("business_website", "")
         
         return {
             "title": business_data.get("name", ""),
@@ -169,10 +215,22 @@ class YelpClient:
             "source": "yelp",
             "source_id": business_data.get("id", ""),
             "external_id": business_data.get("id", ""),  # For unified_events
-            "source_url": business_data.get("url", ""),
+            "source_url": clean_yelp_url,  # Clean Yelp page URL
+            "website_url": actual_business_website if actual_business_website else clean_yelp_url,  # Actual business website or Yelp page
+            "contact_phone": business_data.get("display_phone") or business_data.get("phone", ""),
             "image_url": business_data.get("image_url", ""),
             "tags": [cat.get("title", "") for cat in business_data.get("categories", [])]
         }
+    
+    def _clean_yelp_url(self, url: str) -> str:
+        """Remove tracking parameters from Yelp URL"""
+        if not url:
+            return ""
+        
+        # Split URL at '?' to remove all query parameters
+        # Yelp business URLs are clean without params: https://www.yelp.com/biz/business-name-city
+        clean_url = url.split('?')[0]
+        return clean_url
 
 
 class GooglePlacesClient:

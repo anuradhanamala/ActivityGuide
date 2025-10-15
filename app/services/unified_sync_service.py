@@ -33,6 +33,25 @@ class UnifiedSyncService:
             EventSource.TICKETMASTER: TicketmasterClient(),
         }
     
+    def _get_configured_sources(self) -> List[EventSource]:
+        """Get only sources with valid API keys configured"""
+        from app.core.config import settings
+        
+        configured = []
+        
+        # Check legacy clients (always try Yelp and Eventbrite if keys exist)
+        if settings.YELP_API_KEY and not settings.YELP_API_KEY.startswith("your_"):
+            configured.append(EventSource.YELP)
+        
+        if settings.EVENTBRITE_API_KEY and not settings.EVENTBRITE_API_KEY.startswith("your_"):
+            configured.append(EventSource.EVENTBRITE)
+        
+        # Skip Google Places, Ticketmaster, and new sources with placeholder keys
+        # They will only show errors
+        
+        logger.info(f"Configured sources with valid API keys: {[s.value for s in configured]}")
+        return configured
+    
     async def sync_all_sources(
         self, 
         db: Session, 
@@ -59,9 +78,9 @@ class UnifiedSyncService:
             available_sources = sources
             logger.info(f"Syncing specific sources: {[s.value for s in sources]}")
         else:
-            # Get all available sources
-            available_sources = self.api_manager.get_available_sources()
-            logger.info(f"Syncing all available sources: {[s.value for s in available_sources]}")
+            # Only sync sources with valid API keys (no console errors!)
+            available_sources = self._get_configured_sources()
+            logger.info(f"Syncing configured sources only: {[s.value for s in available_sources]}")
         
         results["total_sources"] = len(available_sources)
         

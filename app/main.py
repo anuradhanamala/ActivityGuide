@@ -31,17 +31,8 @@ async def lifespan(app: FastAPI):
         print(f"❌ Database creation error: {e}")
         # Continue anyway - tables might already exist
     
-    # Test Redis connection
-    try:
-        if redis_client:
-            await redis_client.ping()
-            print("✅ Redis connected")
-        else:
-            # Redis is optional for development
-            pass
-    except Exception as e:
-        # Redis is optional - continue without cache
-        pass
+    # Redis is optional for development - skip connection test
+    print("ℹ️  Redis caching: Disabled (optional feature)")
     
     # Start background sync scheduler (disabled - use API endpoints to trigger syncs)
     # start_sync_scheduler()  # Use /api/v1/unified/sync/city endpoint instead
