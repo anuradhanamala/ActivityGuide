@@ -293,6 +293,13 @@ async def sync_city(
     """
     
     try:
+        # Validate city name - reject placeholder values
+        if city.lower() in ["string", "example", "test", "city"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid city name '{city}'. Please provide a real city name like 'Troy' or 'Detroit'."
+            )
+        
         # Use geocoding service to get ZIP codes
         # Note: This supports both exact city names and geocoding for any US city
         try:

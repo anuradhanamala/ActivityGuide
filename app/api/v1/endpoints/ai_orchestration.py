@@ -69,6 +69,19 @@ async def orchestrate_multi_source_sync(
     Returns immediately with sync started in background.
     """
     try:
+        # Validate request - reject placeholder values
+        if request.city and request.city.lower() in ["string", "example", "test", "city"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid city name '{request.city}'. Please provide a real city name like 'Troy' or 'Detroit'."
+            )
+        
+        if request.zip_codes and any(z.lower() in ["string", "12345", "00000"] for z in request.zip_codes):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid ZIP codes. Please provide real ZIP codes like ['48374', '48375']."
+            )
+        
         # Convert city to ZIP codes if needed
         zip_codes = request.zip_codes
         if not zip_codes and request.city:
