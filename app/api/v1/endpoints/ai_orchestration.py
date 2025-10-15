@@ -84,11 +84,13 @@ async def orchestrate_multi_source_sync(
                 zip_codes, method = await geocoding_service.get_zip_codes_for_city(
                     request.city, request.state
                 )
-                logger.info(f"Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes")
+                logger.info(f"Converted {request.city}, {request.state} to {len(zip_codes)} ZIP codes using {method}")
             except Exception as e:
-                logger.warning(f"Geocoding failed for {request.city}: {e}")
-                # Fallback to default ZIP codes
-                zip_codes = ["48083", "48084"] if request.city and request.city.lower() == "troy" else ["48201", "48202"]
+                # If geocoding fails, return helpful error instead of using defaults
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not find ZIP codes for '{request.city}, {request.state}'. Please provide 'zip_codes' directly or use a recognized city name. Error: {str(e)}"
+                )
         
         # Final validation - must have ZIP codes
         if not zip_codes or len(zip_codes) == 0:
