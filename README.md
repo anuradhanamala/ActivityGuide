@@ -2,6 +2,124 @@
 
 A city-first event discovery platform for parents, powered by AI personalization and real-time data from multiple sources.
 
+## 📖 What is ActivityGuide? (For Everyone)
+
+**ActivityGuide helps parents find the perfect activities for their kids using smart AI technology.**
+
+### How It Works (Simple View)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     🎯 ACTIVITYGUIDE FLOW                           │
+└─────────────────────────────────────────────────────────────────────┘
+
+  👨‍👩‍👧‍👦 PARENT SEARCHES
+     ↓
+     "Find confidence building activities for my shy 8-year-old"
+     ↓
+┌────────────────────────────────────────────────────────────────────┐
+│  ① DATA COLLECTION (AI Agent 🤖 Works Behind the Scenes)          │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  The AI Agent automatically:                                       │
+│  • Keeps activity data fresh and up-to-date                       │
+│  • Collects from 6+ sources: Yelp, Google, Eventbrite, etc.      │
+│  • Runs every hour to check for new activities                    │
+│  • Covers ANY city in the USA 🇺🇸                                 │
+│  • No human effort needed - it's autonomous!                       │
+│                                                                    │
+│  📊 Data Sources:                                                  │
+│  Yelp → Google Places → Eventbrite → Community Submissions        │
+│         ↓                                                          │
+│    💾 Database: 1,000+ Activities Ready to Search                 │
+└────────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────────┐
+│  ② SMART SEARCH (RAG 🧠 Understands What You Mean)                │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  RAG (Retrieval-Augmented Generation) means:                       │
+│  • Understands concepts, not just keywords                         │
+│  • Knows "confidence building" = martial arts, drama, sports      │
+│  • Understands "shy" needs small group settings                    │
+│  • Considers age, location, price automatically                    │
+│                                                                    │
+│  How RAG Works:                                                    │
+│  ┌────────────────┐     ┌────────────────┐    ┌────────────────┐ │
+│  │ Your Question  │ →   │ AI Understands │ →  │ Smart Database │ │
+│  │ (Natural       │     │ Your Intent &  │    │ Search Finds   │ │
+│  │  Language)     │     │ Emotions       │    │ Best Matches   │ │
+│  └────────────────┘     └────────────────┘    └────────────────┘ │
+│                                                                    │
+│  Instead of simple keyword matching like "confidence",             │
+│  RAG finds activities that ACTUALLY help build confidence!         │
+└────────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────────┐
+│  ③ AI ANALYSIS (AI Explains WHY Each Activity is Perfect) 💡      │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  AI reads each activity and explains:                              │
+│  • Why it's good for YOUR specific child                          │
+│  • How it addresses their needs (e.g., "shy")                     │
+│  • What makes it age-appropriate                                   │
+│  • Special considerations (price, location, schedule)              │
+└────────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────────┐
+│  ④ RESULTS YOU SEE 🎉                                             │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  🥋 Kids Martial Arts - Beginner                                   │
+│     Age: 6-12 | Troy, MI | $80/month                              │
+│     ⭐ 95% Match                                                   │
+│     💡 "Builds confidence through structured discipline and        │
+│         achievement. Small class sizes perfect for shy children."  │
+│                                                                    │
+│  🎭 Youth Drama Workshop                                           │
+│     Age: 7-14 | Birmingham, MI | Free                             │
+│     ⭐ 92% Match                                                   │
+│     💡 "Public performance in supportive environment helps         │
+│         overcome shyness and build self-assurance."                │
+│                                                                    │
+│  🏀 Basketball Fundamentals                                        │
+│     Age: 7-10 | Detroit, MI | $50/month                           │
+│     ⭐ 88% Match                                                   │
+│     💡 "Team sports build social skills and confidence             │
+│         through group achievement."                                │
+└────────────────────────────────────────────────────────────────────┘
+
+```
+
+### 🔑 Key Benefits
+
+| What You Get | How It Helps |
+|-------------|--------------|
+| **🤖 AI Agent** | Automatically keeps all activity data fresh - you always see current information |
+| **🧠 Smart Search (RAG)** | Understands what you mean, not just what you say - finds activities that truly fit |
+| **💡 AI Explanations** | Know WHY each activity is recommended for YOUR child's specific needs |
+| **⚡ Fast Results** | Get personalized recommendations in seconds, not hours of research |
+| **🌎 USA-Wide Coverage** | Works for ANY city in the United States |
+| **💰 All Budgets** | Free and paid activities, with clear pricing |
+
+### 🎯 Real Example
+
+**Parent Types:** "My 8-year-old is really shy and needs help making friends"
+
+**Without ActivityGuide:**
+- 😫 Google for 2 hours
+- 📞 Call 10+ places
+- ❓ Wonder if they're appropriate
+- ⏰ Spend your whole evening
+
+**With ActivityGuide:**
+- ⚡ 3 seconds to get results
+- 🎯 8 activities specifically chosen for shy kids
+- 💡 Clear explanations why each helps
+- ✅ Age-appropriate, local, and current
+
+---
+
 ## 🚀 Features
 
 ### MVP Features
