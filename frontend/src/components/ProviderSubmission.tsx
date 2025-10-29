@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Plus, Calendar, MapPin, DollarSign, Users } from 'lucide-react';
 
 interface SubmissionData {
   title: string;
@@ -74,7 +75,7 @@ const ProviderSubmission: React.FC = () => {
       <div className="max-w-2xl mx-auto">
         <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
           <div className="text-green-600 mb-4">
-            <span className="text-6xl mx-auto text-blue-600 font-bold">+</span>
+            <Plus className="h-16 w-16 mx-auto" />
           </div>
           <h2 className="text-2xl font-bold text-green-900 mb-4">Thank You!</h2>
           <p className="text-green-800 mb-6">
@@ -96,7 +97,7 @@ const ProviderSubmission: React.FC = () => {
     <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-          <span className="text-blue-600 mr-2 font-bold">+</span>
+          <Plus className="h-6 w-6 text-primary-600 mr-2" />
           Submit Your Event
         </h1>
         
@@ -109,7 +110,7 @@ const ProviderSubmission: React.FC = () => {
           {/* Event Details */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="text-blue-600 mr-2 font-bold">📅</span>
+              <Calendar className="h-5 w-5 text-primary-600 mr-2" />
               Event Details
             </h2>
             <div className="space-y-4">
@@ -172,6 +173,7 @@ const ProviderSubmission: React.FC = () => {
           {/* Location */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <MapPin className="h-5 w-5 text-primary-600 mr-2" />
               Location
             </h2>
             <div className="space-y-4">
@@ -250,7 +252,7 @@ const ProviderSubmission: React.FC = () => {
           {/* Contact Information */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="text-blue-600 mr-2 font-bold">👥</span>
+              <Users className="h-5 w-5 text-primary-600 mr-2" />
               Contact Information
             </h2>
             <div className="space-y-4">
@@ -301,7 +303,7 @@ const ProviderSubmission: React.FC = () => {
           {/* Event Details */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="text-red-600 mr-2 font-bold">💰</span>
+              <DollarSign className="h-5 w-5 text-primary-600 mr-2" />
               Event Details
             </h2>
             <div className="space-y-4">

@@ -5,6 +5,7 @@ Very fast and very cheap!
 
 # Change imports
 from langchain_google_genai import ChatGoogleGenerativeAI  # Instead of ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent  # Modern approach!
 
 # ... rest of imports same ...
 
@@ -24,4 +25,8 @@ class SmartOrchestrationAgent:
         # model="gemini-pro"        # Standard model
         
         # Rest of code stays THE SAME!
+        # Agent creation with create_tool_calling_agent (modern approach)
+        # No ConversationBufferMemory - use manual chat history instead
+        # Pass chat_history in ainvoke() calls
+
 

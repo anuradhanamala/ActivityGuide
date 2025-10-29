@@ -5,7 +5,7 @@ Much cheaper and faster than GPT!
 
 # Change imports
 from langchain_anthropic import ChatAnthropic  # Instead of ChatOpenAI
-from langchain.agents import AgentExecutor, create_openai_functions_agent  # Still works!
+from langchain.agents import AgentExecutor, create_tool_calling_agent  # Modern approach!
 
 # ... rest of imports same ...
 
@@ -25,5 +25,8 @@ class SmartOrchestrationAgent:
         # model="claude-3-opus-20240229"    # Most intelligent
         
         # Rest of code stays THE SAME!
-        # Agent creation, tools, everything else identical
+        # Agent creation with create_tool_calling_agent (modern approach)
+        # No ConversationBufferMemory - use manual chat history instead
+        # Pass chat_history in ainvoke() calls
+
 

@@ -14,12 +14,13 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import logging
+import os
 
-from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain.tools import tool
 from langchain_anthropic import ChatAnthropic  # Using Claude instead of GPT!
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy import func
 
 from app.core.database import SessionLocal
@@ -29,7 +30,22 @@ from app.services.unified_sync_service import UnifiedSyncService
 from app.services.geocoding_service import geocoding_service
 from app.services.hybrid_rag import hybrid_rag_service
 
+# Configure logging with file handler
 logger = logging.getLogger(__name__)
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Add file handler for agent operations
+file_handler = logging.FileHandler("logs/agent_service.log")
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
 
 
 # ============================================================================
@@ -375,6 +391,69 @@ async def optimize_search_threshold(query: str, city: str, current_results: int)
     return threshold
 
 
+@tool
+async def calculate_city_thresholds(city: str, state: str = "MI") -> Dict[str, Any]:
+    """
+    Calculate optimal default search thresholds for a city based on data characteristics.
+    
+    Args:
+        city: City name
+        state: State code
+    
+    Returns:
+        Recommended thresholds for different query types
+    """
+    db = SessionLocal()
+    try:
+        # Get city statistics
+        total_events = db.query(UnifiedEvent).filter(
+            func.lower(UnifiedEvent.city) == city.lower(),
+            func.lower(UnifiedEvent.state) == state.upper()
+        ).count()
+        
+        # Count categories
+        categories = db.query(UnifiedEvent.primary_category).filter(
+            func.lower(UnifiedEvent.city) == city.lower()
+        ).distinct().count()
+        
+        # Calculate recommended thresholds based on data volume
+        if total_events < 10:
+            # Very few events - use relaxed thresholds
+            base_threshold = 1.50
+            specific_threshold = 1.40
+            broad_threshold = 1.60
+        elif total_events < 50:
+            # Small dataset - slightly relaxed
+            base_threshold = 1.30
+            specific_threshold = 1.20
+            broad_threshold = 1.40
+        elif total_events < 200:
+            # Medium dataset - balanced
+            base_threshold = 1.20
+            specific_threshold = 1.10
+            broad_threshold = 1.30
+        else:
+            # Large dataset - can be strict
+            base_threshold = 1.10
+            specific_threshold = 1.00
+            broad_threshold = 1.20
+        
+        return {
+            "city": city,
+            "state": state,
+            "total_events": total_events,
+            "categories": categories,
+            "recommended_thresholds": {
+                "base": base_threshold,
+                "specific_queries": specific_threshold,
+                "broad_queries": broad_threshold
+            },
+            "data_quality": "excellent" if total_events > 100 else "good" if total_events > 50 else "limited"
+        }
+    finally:
+        db.close()
+
+
 # ============================================================================
 # SMART ORCHESTRATION AGENT
 # ============================================================================
@@ -430,29 +509,28 @@ class SmartOrchestrationAgent:
             create_embeddings_for_city,
             analyze_search_quality,
             get_popular_cities_usa,
-            optimize_search_threshold
+            optimize_search_threshold,
+            calculate_city_thresholds
         ]
         
         # Create agent
-        self.agent = create_openai_functions_agent(
+        self.agent = create_tool_calling_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=self.prompt
         )
         
-        # Create executor
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
-        
+        # Create executor (without deprecated memory)
         self.agent_executor = AgentExecutor(
             agent=self.agent,
             tools=self.tools,
-            memory=self.memory,
             verbose=True,
-            handle_parsing_errors=True
+            handle_parsing_errors=True,
+            max_iterations=200  # High limit for batch city processing (20 cities × ~10 steps each)
         )
+        
+        # Manual chat history management (modern approach)
+        self.chat_history = []
         
         logger.info("🤖 Smart Orchestration Agent initialized with LangChain")
     
@@ -477,7 +555,8 @@ class SmartOrchestrationAgent:
                 
                 Focus on Michigan cities (Troy, Warren, Detroit) first, then expand to other states.
                 
-                Provide a summary of your actions and decisions."""
+                Provide a summary of your actions and decisions.""",
+                "chat_history": self.chat_history
             })
             
             logger.info("="*80)
@@ -503,10 +582,32 @@ class SmartOrchestrationAgent:
             logger.info(f"🤖 AGENT: Handling request: {request}")
             
             response = await self.agent_executor.ainvoke({
-                "input": request
+                "input": request,
+                "chat_history": self.chat_history
             })
             
-            return response['output']
+            # Extract text from response (handle both string and list formats)
+            output = response['output']
+            if isinstance(output, list):
+                # New Anthropic format: list of message parts
+                text_parts = [part.get('text', '') for part in output if part.get('type') == 'text']
+                output_text = ' '.join(text_parts)
+            elif isinstance(output, str):
+                # Standard string format
+                output_text = output
+            else:
+                # Unknown format, convert to string
+                output_text = str(output)
+            
+            # Update chat history for conversational context
+            self.chat_history.append(HumanMessage(content=request))
+            self.chat_history.append(AIMessage(content=output_text))
+            
+            # Keep history manageable (last 10 messages)
+            if len(self.chat_history) > 10:
+                self.chat_history = self.chat_history[-10:]
+            
+            return output_text
             
         except Exception as e:
             logger.error(f"❌ AGENT: Request handling failed: {e}")

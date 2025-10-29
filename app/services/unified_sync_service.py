@@ -8,8 +8,10 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+import os
 
 from app.core.database import get_db
+from app.core.categories import CategoryMapper
 from app.models.unified_event import (
     UnifiedEvent, EventSource, EventType, AgeCategory, EventSyncLog
 )
@@ -18,7 +20,22 @@ from app.services.api_clients import (
     EventbriteClient, YelpClient, GooglePlacesClient, TicketmasterClient
 )
 
+# Configure logging with file handler
 logger = logging.getLogger(__name__)
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Add file handler for sync operations
+file_handler = logging.FileHandler("logs/sync_operations.log")
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
 
 
 class UnifiedSyncService:
@@ -87,8 +104,13 @@ class UnifiedSyncService:
         # Sync each source
         for source in available_sources:
             try:
-                logger.info(f"Starting sync for {source.value} with {len(zip_codes)} ZIP codes")
+                logger.info(f"=" * 70)
+                logger.info(f"[SYNC] STARTING SYNC: {source.value.upper()}")
+                logger.info(f"[ZIP] ZIP Codes: {zip_codes}")
+                logger.info(f"=" * 70)
+                
                 source_result = await self._sync_source(db, source, zip_codes)
+                
                 results["total_events"] += source_result["total_events"]
                 results["events_created"] += source_result["events_created"]
                 results["events_updated"] += source_result["events_updated"]
@@ -99,7 +121,9 @@ class UnifiedSyncService:
                     "created": source_result["events_created"],
                     "updated": source_result["events_updated"]
                 })
-                logger.info(f"Completed sync for {source.value}: {source_result}")
+                
+                logger.info(f"[OK] COMPLETED: {source.value.upper()} - Events: {source_result['total_events']}, Created: {source_result['events_created']}, Updated: {source_result['events_updated']}")
+                logger.info(f"=" * 70)
             except Exception as e:
                 error_msg = f"Error syncing {source.value}: {str(e)}"
                 logger.error(error_msg)
@@ -212,25 +236,39 @@ class UnifiedSyncService:
                 elif source in self.legacy_clients:
                     client = self.legacy_clients[source]
                     if source == EventSource.EVENTBRITE:
+                        # Use CategoryMapper for comprehensive Eventbrite categories
+                        eventbrite_cats_str = CategoryMapper.get_eventbrite_categories()
+                        eventbrite_cats_list = eventbrite_cats_str.split(',')
+                        logger.info(f"[CATS] Using {len(eventbrite_cats_list)} Eventbrite categories: {eventbrite_cats_str}")
                         events = await client.search_events(
                             location=zip_code,
-                            categories=["family"],
+                            categories=eventbrite_cats_list,
                             start_date=params.start_date,
                             end_date=params.end_date
                         )
+                        logger.info(f"[OK] Eventbrite returned {len(events)} events for ZIP {zip_code}")
                     elif source == EventSource.YELP:
-                        logger.info(f"🔍 Calling Yelp API with location='{zip_code}' (type: {type(zip_code)})")
+                        logger.info(f"[API] Calling Yelp API with location='{zip_code}' (type: {type(zip_code)})")
+                        # Use CategoryMapper to get ALL family-friendly categories (not just 3!)
+                        yelp_categories_str = CategoryMapper.get_yelp_categories()
+                        yelp_categories_list = yelp_categories_str.split(',')
+                        logger.info(f"[CATS] Using {len(yelp_categories_list)} Yelp categories: {yelp_categories_str}")
                         events = await client.search_businesses(
                             location=zip_code,
-                            categories=["museums", "playgrounds", "amusementparks"],
+                            categories=yelp_categories_list,
                             fetch_details=False  # Explicitly disable Business Details API
                         )
-                        logger.info(f"✅ Yelp returned {len(events)} events for ZIP {zip_code}")
+                        logger.info(f"[OK] Yelp returned {len(events)} events for ZIP {zip_code}")
                     elif source == EventSource.GOOGLE_PLACES:
+                        # Use CategoryMapper for comprehensive Google Places types
+                        google_types_str = CategoryMapper.get_google_places_types()
+                        google_types_list = google_types_str.split('|')
+                        logger.info(f"[CATS] Using {len(google_types_list)} Google Places types: {google_types_str}")
                         events = await client.search_places(
                             location=zip_code,
-                            types=["park", "museum", "amusement_park", "gym"]
+                            types=google_types_list
                         )
+                        logger.info(f"[OK] Google Places returned {len(events)} events for ZIP {zip_code}")
                     elif source == EventSource.TICKETMASTER:
                         events = await client.search_events(
                             city="Ann Arbor",  # Extract city from zip

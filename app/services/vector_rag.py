@@ -391,20 +391,43 @@ class VectorRAGService:
                         k=limit * 2
                     )
                 
-                # SIMILARITY THRESHOLD: Filter by relevance
-                # Based on actual testing with "dance lessons" in Troy:
-                # Dance studios: 1.304 - 1.343 (INCLUDE)
-                # Martial Arts/MMA: 1.588 - 1.815 (EXCLUDE)
-                # Perfect threshold: 1.4657 (midpoint)
-                # Using 1.20 for stricter filtering (prevents irrelevant results)
-                SIMILARITY_THRESHOLD = 1.20  # Stricter - only highly relevant results
+                # DYNAMIC SIMILARITY THRESHOLD based on query specificity
+                # Lower threshold = stricter = more relevant results
+                
+                # Detect specific activity keywords
+                specific_keywords = [
+                    'swim', 'swimming', 'pool', 'aquatic',
+                    'basketball', 'soccer', 'football', 'baseball', 'tennis',
+                    'karate', 'martial arts', 'taekwondo', 'judo',
+                    'dance', 'ballet', 'hip hop', 'jazz',
+                    'piano', 'guitar', 'music lessons', 'violin',
+                    'art class', 'painting', 'drawing',
+                    'gymnastics', 'tumbling', 'cheerleading'
+                ]
+                
+                # Check if query is specific
+                query_lower = query.lower()
+                is_specific = any(keyword in query_lower for keyword in specific_keywords)
+                
+                # Set threshold based on query type
+                if is_specific:
+                    # STRICT for specific queries (swim, basketball, etc.)
+                    SIMILARITY_THRESHOLD = 0.95  # Only exact matches
+                    logger.info(f"Using STRICT threshold (0.95) for specific query: '{query}'")
+                else:
+                    # RELAXED for broad queries (fun activities, things to do)
+                    SIMILARITY_THRESHOLD = 1.20  # More lenient
+                    logger.info(f"Using RELAXED threshold (1.20) for broad query: '{query}'")
                 
                 results = [
                     doc for doc, score in results_with_scores 
                     if score < SIMILARITY_THRESHOLD
                 ][:limit]  # Take top N after filtering
                 
-                logger.info(f"Filtered to {len(results)} results with similarity < {SIMILARITY_THRESHOLD}")
+                # Log scores for debugging
+                if results_with_scores:
+                    logger.info(f"Score range: {min(s for _, s in results_with_scores):.3f} - {max(s for _, s in results_with_scores):.3f}")
+                    logger.info(f"Filtered to {len(results)} results with similarity < {SIMILARITY_THRESHOLD}")
                 
                 # If no relevant results found, return empty instead of all results
                 if len(results) == 0:

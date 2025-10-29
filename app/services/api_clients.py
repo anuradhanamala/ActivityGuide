@@ -7,10 +7,26 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
+import os
 from app.core.config import settings
 from app.core.categories import CategoryMapper
 
+# Configure logging with file handler
 logger = logging.getLogger(__name__)
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Add file handler for API calls
+file_handler = logging.FileHandler("logs/api_calls.log")
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.INFO)
 
 
 class EventbriteClient:
@@ -36,6 +52,8 @@ class EventbriteClient:
             logger.warning("Eventbrite API key not configured")
             return []
         
+        logger.info(f"[API] Eventbrite API: location='{location}', categories={categories}")
+        
         try:
             async with httpx.AsyncClient() as client:
                 params = {
@@ -50,6 +68,9 @@ class EventbriteClient:
                 if end_date:
                     params["start_date.range_end"] = end_date.isoformat()
                 
+                logger.info(f"[CALL] CALLING EVENTBRITE API: {self.base_url}/events/search/")
+                logger.info(f"[PARAMS] Request params: {params}")
+                
                 response = await client.get(
                     f"{self.base_url}/events/search/",
                     headers=self.headers,
@@ -58,16 +79,19 @@ class EventbriteClient:
                 )
                 response.raise_for_status()
                 
+                logger.info(f"[OK] EVENTBRITE API Response: Status {response.status_code}")
+                
                 data = response.json()
                 events = []
                 
                 for event in data.get("events", []):
                     events.append(self._normalize_event(event))
                 
+                logger.info(f"[RESULT] EVENTBRITE returned {len(events)} events")
                 return events
                 
         except Exception as e:
-            logger.error(f"Eventbrite API error: {e}")
+            logger.error(f"❌ Eventbrite API error: {e}")
             return []
     
     def _normalize_event(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -124,7 +148,7 @@ class YelpClient:
             logger.error(f"❌ ERROR: Empty location passed to Yelp API! location='{location}'")
             return []
         
-        logger.info(f"🔍 Yelp API: location='{location}', categories={categories}")
+        logger.info(f"[API] Yelp API: location='{location}', categories={categories}")
         
         try:
             async with httpx.AsyncClient() as client:
@@ -138,6 +162,9 @@ class YelpClient:
                 if price:
                     params["price"] = price
                 
+                logger.info(f"[CALL] CALLING YELP API: {self.base_url}/businesses/search")
+                logger.info(f"[PARAMS] Request params: {params}")
+                
                 response = await client.get(
                     f"{self.base_url}/businesses/search",
                     headers=self.headers,
@@ -145,6 +172,8 @@ class YelpClient:
                     timeout=30.0
                 )
                 response.raise_for_status()
+                
+                logger.info(f"[OK] YELP API Response: Status {response.status_code}")
                 
                 data = response.json()
                 businesses = []
@@ -159,10 +188,11 @@ class YelpClient:
                     
                     businesses.append(self._normalize_business(business))
                 
+                logger.info(f"[RESULT] YELP returned {len(businesses)} businesses")
                 return businesses
                 
         except Exception as e:
-            logger.error(f"Yelp API error: {e}")
+            logger.error(f"❌ Yelp API error: {e}")
             return []
     
     async def _get_business_details(self, client: httpx.AsyncClient, business_id: str) -> Optional[Dict[str, Any]]:
@@ -207,6 +237,14 @@ class YelpClient:
         # Get actual business website if available (from details API call)
         actual_business_website = business_data.get("business_website", "")
         
+        # Extract actual Yelp category (not hardcoded!)
+        categories = business_data.get("categories", [])
+        if categories and len(categories) > 0:
+            # Use the first category alias (most specific)
+            primary_category = categories[0].get("alias", "family_venue")
+        else:
+            primary_category = "family_venue"
+        
         return {
             "title": business_data.get("name", ""),
             "description": business_data.get("categories", [{}])[0].get("title", ""),
@@ -217,8 +255,8 @@ class YelpClient:
             "zip_code": location.get("zip_code", ""),
             "latitude": business_data.get("coordinates", {}).get("latitude"),
             "longitude": business_data.get("coordinates", {}).get("longitude"),
-            "category": "family_venue",  # For legacy events table
-            "primary_category": "family_venue",  # For unified_events table
+            "category": primary_category,  # For legacy events table - use actual Yelp category
+            "primary_category": primary_category,  # For unified_events table - use actual Yelp category
             "is_free": business_data.get("price") == "$",
             "source": "yelp",
             "source_id": business_data.get("id", ""),

@@ -276,6 +276,14 @@ Thumbs.db
 activity_guide.db
 activityguide.db
 
+# ChromaDB vector storage (generated data)
+chroma_db/
+*.bin
+
+# CSV exports (generated data)
+*.csv
+activityguide_export_*.csv
+
 # Logs
 logs
 *.log

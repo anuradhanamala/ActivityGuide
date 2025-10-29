@@ -8,10 +8,27 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional
 import logging
+from datetime import datetime
+import os
 
 from app.agents import smart_agent
 
+# Configure file logging for agent operations
 logger = logging.getLogger(__name__)
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Add file handler for agent logs
+file_handler = logging.FileHandler("logs/agent_operations.log")
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+
 router = APIRouter()
 
 # Track if agent is running
@@ -42,6 +59,7 @@ async def agent_info():
     
     Get information about the Smart Orchestration Agent
     """
+    logger.info("ENDPOINT: GET /agent/ - Agent info requested")
     return {
         "name": "Smart Orchestration Agent",
         "description": "Autonomous AI agent powered by LangChain",
@@ -60,7 +78,8 @@ async def agent_info():
             "create_embeddings_for_city",
             "analyze_search_quality",
             "get_popular_cities_usa",
-            "optimize_search_threshold"
+            "optimize_search_threshold",
+            "calculate_city_thresholds"
         ],
         "endpoints": {
             "info": "GET /agent/",
@@ -87,7 +106,10 @@ async def start_agent(
     """
     global agent_running
     
+    logger.info(f"ENDPOINT: POST /agent/start - Interval: {interval_minutes} minutes")
+    
     if agent_running:
+        logger.warning("Agent start failed - already running")
         return {
             "success": False,
             "message": "Agent is already running"
@@ -101,7 +123,7 @@ async def start_agent(
         interval_minutes
     )
     
-    logger.info(f"🤖 Agent started with {interval_minutes} minute interval")
+    logger.info(f"✅ Agent started successfully - Interval: {interval_minutes} minutes")
     
     return {
         "success": True,
@@ -118,14 +140,17 @@ async def stop_agent():
     """
     global agent_running
     
+    logger.info("ENDPOINT: POST /agent/stop - Stop agent requested")
+    
     if not agent_running:
+        logger.warning("Agent stop failed - not running")
         return {
             "success": False,
             "message": "Agent is not running"
         }
     
     agent_running = False
-    logger.info("🤖 Agent stopped")
+    logger.info("✅ Agent stopped successfully")
     
     return {
         "success": True,
@@ -141,10 +166,12 @@ async def run_single_cycle(background_tasks: BackgroundTasks):
     
     Agent will check system state and take appropriate actions once.
     """
-    logger.info("🤖 Running single agent cycle")
+    logger.info("ENDPOINT: POST /agent/run-cycle - Single cycle requested")
     
     # Run cycle in background
     background_tasks.add_task(smart_agent.run_autonomous_cycle)
+    
+    logger.info("✅ Agent cycle started in background")
     
     return {
         "success": True,
@@ -167,10 +194,12 @@ async def make_agent_request(request: AgentRequest):
     - "Analyze search quality for Los Angeles"
     """
     try:
-        logger.info(f"🤖 Agent request: {request.request}")
+        logger.info(f"ENDPOINT: POST /agent/request - Request: '{request.request}'")
         
         # Send request to agent
         response = await smart_agent.handle_user_request(request.request)
+        
+        logger.info(f"✅ Agent request completed successfully")
         
         return AgentResponse(
             success=True,
@@ -187,27 +216,122 @@ async def make_agent_request(request: AgentRequest):
 # PRESET AGENT COMMANDS
 # ============================================================================
 
+@router.post("/commands/sync-michigan-batch")
+async def sync_michigan_cities_batch():
+    """
+    🏙️ Batch sync for Michigan cities (no agent - direct sync)
+    
+    Directly syncs Michigan cities without agent overhead.
+    More efficient for updating categories.
+    """
+    from app.services.unified_sync_service import UnifiedSyncService
+    from app.services.geocoding_service import geocoding_service
+    from app.core.database import SessionLocal
+    
+    logger.info("ENDPOINT: POST /agent/commands/sync-michigan-batch - Batch sync requested")
+    
+    # List of Michigan cities to sync
+    michigan_cities = [
+        "Troy", "Novi", "Ann Arbor", "Sterling Heights", "Canton",
+        "Rochester Hills", "Farmington Hills", "Livonia", "Royal Oak",
+        "Plymouth", "Northville", "Birmingham", "West Bloomfield",
+        "Dearborn", "Warren", "Detroit", "Grand Rapids", "East Lansing",
+        "Kalamazoo", "Midland"
+    ]
+    
+    results = []
+    total_updated = 0
+    total_created = 0
+    
+    for city in michigan_cities:
+        try:
+            logger.info(f"[BATCH] Syncing {city}, MI...")
+            
+            # Get ZIP codes
+            zip_codes, method = await geocoding_service.get_zip_codes_for_city(city, "MI")
+            
+            # Sync
+            db = SessionLocal()
+            sync_service = UnifiedSyncService()
+            result = await sync_service.sync_all_sources(db, zip_codes)
+            db.close()
+            
+            results.append({
+                "city": city,
+                "success": True,
+                "events_created": result.get("events_created", 0),
+                "events_updated": result.get("events_updated", 0)
+            })
+            
+            total_created += result.get("events_created", 0)
+            total_updated += result.get("events_updated", 0)
+            
+            logger.info(f"[BATCH] {city} - Created: {result.get('events_created', 0)}, Updated: {result.get('events_updated', 0)}")
+            
+        except Exception as e:
+            logger.error(f"[BATCH] Failed to sync {city}: {e}")
+            results.append({
+                "city": city,
+                "success": False,
+                "error": str(e)
+            })
+    
+    logger.info(f"[BATCH] Completed - Total Created: {total_created}, Total Updated: {total_updated}")
+    
+    return {
+        "success": True,
+        "command": "Batch Sync Michigan Cities",
+        "cities_processed": len(michigan_cities),
+        "total_created": total_created,
+        "total_updated": total_updated,
+        "results": results
+    }
+
+
 @router.post("/commands/sync-michigan")
 async def sync_michigan_cities():
     """
-    🏙️ Smart sync for all Michigan cities
+    🏙️ Smart sync for all Michigan cities (using agent)
     
     Agent will check and sync Michigan cities that need updates.
     """
-    request = """Check these Michigan cities and sync those that need it:
-    - Troy
-    - Detroit
-    - Warren
-    - Sterling Heights
-    - Novi
-    - Ann Arbor
+    logger.info("ENDPOINT: POST /agent/commands/sync-michigan - Michigan cities sync requested")
+    
+    request = """Check these family-friendly Michigan cities and sync those that need it:
+    
+    High Family Population Cities:
+    - Troy (excellent schools, family suburbs)
+    - Novi (family-friendly, highly rated schools)
+    - Ann Arbor (university town, family activities)
+    - Sterling Heights (diverse families, affordable)
+    - Canton (large family population, parks)
+    - Rochester Hills (affluent families, safe)
+    - Farmington Hills (suburban families, good schools)
+    - Livonia (middle-class families, established)
+    - Royal Oak (young families, vibrant downtown)
+    - Plymouth (small town feel, family-oriented)
+    - Northville (top schools, family activities)
+    - Birmingham (wealthy families, excellent schools)
+    - West Bloomfield (affluent, family suburbs)
+    - Dearborn (diverse families, cultural activities)
+    - Warren (working families, affordable)
+    
+    Major Cities with Family Areas:
+    - Detroit (urban families, city activities)
+    - Grand Rapids (growing family population)
+    - East Lansing (university families, MSU events)
+    - Kalamazoo (family-friendly, WMU area)
+    - Midland (family-oriented, excellent schools)
     
     For each city that needs sync:
-    1. Sync the data
-    2. Create embeddings
-    3. Report results"""
+    1. Sync the data from family-friendly sources
+    2. Create embeddings for kid activities
+    3. Analyze search quality and optimize thresholds
+    4. Report results with recommended search settings"""
     
     response = await smart_agent.handle_user_request(request)
+    
+    logger.info("✅ Michigan cities sync command completed")
     
     return {
         "success": True,
@@ -223,6 +347,8 @@ async def sync_major_us_cities():
     
     Agent will check and sync major cities across the USA.
     """
+    logger.info("ENDPOINT: POST /agent/commands/sync-major-cities - Major US cities sync requested")
+    
     request = """Check these major US cities and sync those that need it:
     - New York, NY
     - Los Angeles, CA
@@ -239,6 +365,8 @@ async def sync_major_us_cities():
     
     response = await smart_agent.handle_user_request(request)
     
+    logger.info("✅ Major US cities sync command completed")
+    
     return {
         "success": True,
         "command": "Sync Major US Cities",
@@ -253,6 +381,8 @@ async def run_quality_audit():
     
     Agent will analyze data quality across multiple cities.
     """
+    logger.info("ENDPOINT: POST /agent/commands/quality-audit - Quality audit requested")
+    
     request = """Perform a comprehensive data quality audit:
     
     1. Check quality for at least 10 cities
@@ -261,6 +391,8 @@ async def run_quality_audit():
     4. Provide a summary report"""
     
     response = await smart_agent.handle_user_request(request)
+    
+    logger.info("✅ Quality audit command completed")
     
     return {
         "success": True,
@@ -276,13 +408,23 @@ async def create_embeddings_all():
     
     Agent will create embeddings for cities that need them.
     """
-    request = """Create embeddings for cities that don't have them yet:
+    logger.info("ENDPOINT: POST /agent/commands/create-embeddings - Create embeddings requested")
+    
+    request = """Create embeddings for cities that don't have them yet and optimize search thresholds:
     
     1. Check which cities have events without embeddings
     2. Create embeddings for those cities
-    3. Report how many embeddings were created per city"""
+    3. For each city, optimize search thresholds based on:
+       - Number of events in the city
+       - Category diversity
+       - Data quality
+    4. Report:
+       - How many embeddings were created per city
+       - Recommended search thresholds per city"""
     
     response = await smart_agent.handle_user_request(request)
+    
+    logger.info("✅ Create embeddings command completed")
     
     return {
         "success": True,
